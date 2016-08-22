@@ -3,7 +3,7 @@
 
 VPNSITE="vpn.site.com"
 JUNIPER="$HOME/.juniper_networks/"
-COOKIES="$HOME/.mozilla/firefox/mwad0hks.default/cookies.sqlite"
+COOKIES="$HOME/.mozilla/firefox/yourprofile.default/cookies.sqlite"
 NCUI="$JUNIPER/network_connect/ncui"
 CERT="$JUNIPER/network_connect/ssl.crt"
 
@@ -132,6 +132,7 @@ function checkCmd()
     elif [ "$CMD" = "p" ]
     then
 	echo
+	echo "Got 'p', printing connection details"
 	ip addr show tun0
 	ip route | grep tun
     fi 
@@ -144,7 +145,7 @@ function main()
     makeNcui
     getDsid
     echo "Starting vpn connect script"
-    echo "Hit q at anytime to quit, r to start/restart vpn, d to disconnect vpn"
+    echo "Hit q at anytime to quit, r to start/restart vpn, d to disconnect vpn, p to print connection details"
     while : 
     do
     	if  ! testNetwork
