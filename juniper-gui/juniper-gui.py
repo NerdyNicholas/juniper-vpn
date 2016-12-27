@@ -22,103 +22,6 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
         self.exitAction.triggered.connect(QtCore.QCoreApplication.instance().quit)
         self.setContextMenu(self.menu)
 
-
-#class ConfigDialog(QtGui.
-
-class BrowserLoginInfo():
-    '''Reads cookies from firefox to get DSID value and determine if a user is logged in'''
-
-    loginStateMap = [
-        [0, 1, 2, 3],
-        ["Logged In", "Not Logged In", "Logged Out", "Automatically Logged Out"]
-    ]
-
-    def __init__(self, profileIni = None, profileName = None, cookiesDb = None, loginDur = 3600 * 24):
-        self.profileIni = profileIni
-        self.profileName = profileName
-        self.cookiesDb = cookiesDb
-        self.loginDur = loginDur
-
-        self.firstAccessDt = datetime.fromtimestamp(0)
-        self.DSFirstAccess = None
-        self.DSID = None
-
-    def loadProfileInfo(self):
-        self.ffUserDir = os.path.expanduser("~/.mozilla/firefox/")
-        self.cookiesDb = os.path.join(self.getProfilePath(self.ffUserDir + "profiles.ini", self.profileName ),  "cookies.sqlite")
-        print self.cookiesDb
-
-    def getProfilePath(self, profilesIniPath, profileName = None):
-        useDefault = True
-        if not profileName is None:
-            useDefault = False
-        try:
-            profiles = ConfigParser.ConfigParser()
-            profiles.read(profilesIniPath)
-            for section in profiles.sections():
-                if not profiles.has_option(section, "Path"):
-                    continue
-                if useDefault and profiles.has_option(section, "Default"):
-                    if profiles.get(section, "Default") == "1":
-                        return os.path.join(os.path.dirname(profilesIniPath), profiles.get(section, "Path"))
-                elif profiles.has_option(section, "Name") and profiles.get(section, "Name") == profileName:
-                    return os.path.join(os.path.dirname(profilesIniPath), profiles.get(section, "Path"))
-        except Exception as e:
-            raise Exception("Failed to load browser profile, error = %s", e)
-            print e
-
-        return ""
-
-    def loadLoginInfo(self):
-        if not os.path.exists(self.cookiesDb):
-            return
-        con = sqlite3.connect(self.cookiesDb)
-        cur = con.cursor()
-        cur.execute("SELECT value FROM moz_cookies where name='DSFirstAccess'")
-        res = cur.fetchone()
-        if not res is None:
-            self.DSFirstAccess = res[0]
-            self.setFirstAccess(self.DSFirstAccess)
-        else:
-            self.DSFirstAccess = None
-            self.setFirstAccess("0")
-        cur.execute("SELECT value FROM moz_cookies where name='DSID'")
-        res = cur.fetchone()
-        if not res is None:
-            self.DSID = res[0]
-        else:
-            self.DSID = None
-        con.close()
-
-    def setFirstAccess(self, DSFirstAccess):
-        firstAccessInt = int(DSFirstAccess)
-        dt = datetime.fromtimestamp(firstAccessInt)
-        self.firstAccessDt = dt
-
-    def getTimeUntilLogout(self):
-        logoutDt = self.firstAccessDt + timedelta(seconds=self.loginDur)
-        if logoutDt > datetime.now():
-            return logoutDt - datetime.now()
-        return timedelta()
-
-    def getLoginStatus(self):
-        if self.DSID is None or self.DSFirstAccess is None:
-            return 1 # not logged in or couldn't read browser info
-        if self.firstAccessDt == datetime.fromtimestamp(0):
-            return 2 # logged out
-        if self.getTimeUntilLogout() == timedelta():
-            return 3 # auto logged out
-        if self.getTimeUntilLogout() > timedelta():
-            return 0 # logged in
-
-    def getLoginStatusString(self):
-        status = self.getLoginStatus()
-        try:
-            index = self.loginStateMap[0].index(status)
-            return self.loginStateMap[1][index]
-        except:
-            return "Unknown"
-
 class UpdateThread(QtCore.QThread):
     browserInfoUpdated = QtCore.pyqtSignal()
 
@@ -137,7 +40,6 @@ class UpdateThread(QtCore.QThread):
 
 class MainWindow(QtGui.QMainWindow):
 
-    browserInfoUpdated = QtCore.pyqtSignal()
     connectInfoUpdated = QtCore.pyqtSignal(object)
 
     def __init__(self, app):
@@ -146,16 +48,14 @@ class MainWindow(QtGui.QMainWindow):
         self.buildUi()
 
         self.configFile = os.path.expanduser("~/.config/junipergui/junipergui.ini")
+        self.loadConfig()
+        self.updateConfigTab()
 
         self.exitOnClose = False
 
         self.jc = JuniperClient()
-        self.bi = BrowserLoginInfo('')
 
-        self.biUpdated = datetime.fromtimestamp(0)
         self.ciUpdated = datetime.fromtimestamp(0)
-
-        self.browserInfoUpdated.connect(self.onBrowserLoginInfoUpdated)
         self.connectInfoUpdated.connect(self.onConnectionInfoUpdate)
 
         self.updateTimer = QtCore.QTimer()
@@ -174,11 +74,9 @@ class MainWindow(QtGui.QMainWindow):
 
         self.buildSignInTab()
         self.buildConnectionInfo()
-        #self.buildBrowserInfo()
         self.buildConfigTab()
 
         self.tabConnectLayout = QtGui.QVBoxLayout()
-        #self.tabConnectLayout.addWidget(self.bgBrowserLogin)
         self.tabConnectLayout.addWidget(self.gbConnectInfo)
         self.tabConnect.setLayout(self.tabConnectLayout)
 
@@ -267,27 +165,6 @@ class MainWindow(QtGui.QMainWindow):
         self.qtsis['gb'] = QtGui.QGroupBox('Sign In Status')
         self.qtsis['gb'].setLayout(self.qtsis['layout'])
 
-    def buildBrowserInfo(self):
-        # create label widgets to show login info from cookies
-        self.bgBrowserLogin = QtGui.QGroupBox("Browser Login Status")
-        self.lblBrowserStatus = QtGui.QLabel("Status:")
-        self.lblBrowserStatusValue = QtGui.QLabel()
-        self.lblBrowserLogin = QtGui.QLabel("Login Date Time:")
-        self.lblBrowserLoginValue = QtGui.QLabel()
-        self.lblBrowserLogout = QtGui.QLabel("Time Until Auto Logout:")
-        self.lblBrowserLogoutValue = QtGui.QLabel()
-
-        # create layout for labels
-        self.browserLoginLayout = QtGui.QGridLayout()
-        self.browserLoginLayout.addWidget(self.lblBrowserStatus, 0, 0)
-        self.browserLoginLayout.addWidget(self.lblBrowserStatusValue, 0, 1)
-        self.browserLoginLayout.addWidget(self.lblBrowserLogin, 1, 0)
-        self.browserLoginLayout.addWidget(self.lblBrowserLoginValue, 1, 1)
-        self.browserLoginLayout.addWidget(self.lblBrowserLogout, 2, 0)
-        self.browserLoginLayout.addWidget(self.lblBrowserLogoutValue, 2, 1)
-
-        self.bgBrowserLogin.setLayout(self.browserLoginLayout)
-
     def buildConnectionInfo(self):
         # create widgets
         self.lblConHost = QtGui.QLabel("Host:")
@@ -336,28 +213,30 @@ class MainWindow(QtGui.QMainWindow):
         self.gbConnectInfo.setLayout(self.connectInfoLayout)
 
     def buildConfigTab(self):
-        self.configUiProperties = [
-            ["cookiesDb", "Path to firefox cookies database:"],
-            ["timeLogout", "Time until auto logout (hours):"],
-            ["vpnHost", "Host name of vpn server:"],
-            ["vpnPort", "Port to vpn server:"],
-            ["sslCert", "Path and file name of SSL cert:"],
-            ["keepAlive", "Time in seconds to check VPN connection and reconnect:"]
+        fields = [
+            ["vpnHost", "Host name of vpn server:", 255, 0],
+            ["vpnPort", "Port to vpn server:", 5, 50],
+            ["autoLogout", "Time until auto logout (hours):", 5, 50],
+            ["keepAlive", "Time in seconds to check VPN connection and reconnect:", 5, 50]
         ]
         self.configUi = {}
-        self.layConfig = QtGui.QGridLayout()
-        for row in range(0, len(self.configUiProperties)  - 1):
-            name = self.configUiProperties[row][0]
-            label = self.configUiProperties[row][1]
-            self.configUi[name] = {}
-            self.configUi[name]["label"] = QtGui.QLabel(label)
-            self.configUi[name]["edit"] = QtGui.QLineEdit()
-            self.layConfig.addWidget(self.configUi[name]["label"], row, 0)
-            self.layConfig.addWidget(self.configUi[name]["edit"], row, 1)
-        self.btnSaveConfig = QtGui.QPushButton("Save")
-        self.layConfig.addWidget(self.btnSaveConfig, row + 1, 0)
+        self.configUi['layout'] = QtGui.QGridLayout()
+        for row in range(0 , len(fields)):
+            self.configUi[fields[row][0]] = {
+                'label': QtGui.QLabel(fields[row][1]),
+                'edit': QtGui.QLineEdit()}
+            self.configUi[fields[row][0]]['edit'].setMaxLength(fields[row][2])
+            if fields[row][3] > 0:
+                self.configUi[fields[row][0]]['edit'].setMaximumWidth(fields[row][3])
+            self.configUi['layout'].addWidget(self.configUi[fields[row][0]]["label"], row * 2, 0)
+            self.configUi['layout'].addWidget(self.configUi[fields[row][0]]["edit"], (row * 2) + 1, 0)
+
+        self.configUi['btnSave'] = QtGui.QPushButton("Save")
+        self.configUi['btnSave'].clicked.connect(self.saveConfig)
+
+        self.configUi['layout'].addWidget(self.configUi['btnSave'], (row * 2) + 2, 0)
         self.tabConfig = QtGui.QWidget(parent=self)
-        self.tabConfig.setLayout(self.layConfig)
+        self.tabConfig.setLayout(self.configUi['layout'])
 
     def loadTrayIcon(self):
         #self.trayIcon = QtGui.QIcon(self.style().standardPixmap(QtGui.QStyle.SP_ComputerIcon))
@@ -406,22 +285,32 @@ class MainWindow(QtGui.QMainWindow):
     def loadConfig(self):
         if not os.path.exists(os.path.dirname(self.configFile)):
             os.mkdir(os.path.dirname(self.configFile), mode=0755)
-        if not os.path.exists(self.configFile):
-            config = ConfigParser.RawConfigParser()
-            config.add_section("junipergui")
-            config.set(self.section, "cookiesDb", "")
-            config.set(self.section, "timeLogout", "12")
-            config.set(self.section, "vpnHost", "vpn.example.com")
-            config.set(self.section, "vpnPort", "443")
-            config.set(self.section, "sslCert", os.path.join(os.path.dirname(self.configFile), "ssl.crt"))
-            config.set(self.section, "keepAlive", "30")
-            with open(self.configFile, 'wb') as configFd:
-                config.write(configFd)
-            self.config = config
 
-    def updateBrowserLoginInfo(self):
-        self.bi.loadProfileInfo()
-        self.bi.loadLoginInfo()
+        defaults = {
+            'vpnHost': 'vpn.example.com',
+            'vpnPort': '443',
+            'keepAlive': '60',
+            'autoLogout': '24',
+        }
+        config = ConfigParser.RawConfigParser(defaults)
+        config.read(self.configFile)
+        if not config.has_section('junipergui'):
+            config.add_section("junipergui")
+        self.config = config
+    
+    def saveConfig(self):
+        self.config.set('junipergui', 'vpnHost', self.configUi['vpnHost']['edit'].text())
+        self.config.set('junipergui', 'vpnPort', self.configUi['vpnPort']['edit'].text())
+        self.config.set('junipergui', 'keepAlive', self.configUi['keepAlive']['edit'].text())
+        self.config.set('junipergui', 'autoLogout', self.configUi['autoLogout']['edit'].text())
+        with open(self.configFile, 'w') as configFd:
+            self.config.write(configFd)
+
+    def updateConfigTab(self):
+        self.configUi['vpnHost']['edit'].setText(self.config.get('junipergui', 'vpnHost'))
+        self.configUi['vpnPort']['edit'].setText(self.config.get('junipergui', 'vpnPort'))
+        self.configUi['keepAlive']['edit'].setText(self.config.get('junipergui', 'keepAlive'))
+        self.configUi['autoLogout']['edit'].setText(self.config.get('junipergui', 'autoLogout'))
 
     def signIn(self):
         pass
@@ -460,29 +349,10 @@ class MainWindow(QtGui.QMainWindow):
                 pass
 
     def onUpdateTimer(self):
-        # reload browser log info every minute so that we
-        # don't hammer on the cookies DB while FF uses it
-        if (self.biUpdated + timedelta(seconds=60)) < datetime.now():
-            self.biUpdated = datetime.now()
-            self.bi.loadProfileInfo()
-            self.bi.loadLoginInfo()
-        # update the browser info every time so that the
-        # logout time keeps counting down
-        self.browserInfoUpdated.emit()
+        pass
 
     def onBrowserLoginInfoUpdated(self):
-        loginStatus = self.bi.getLoginStatus()
-        loginString = self.bi.getLoginStatusString()
-        self.lblBrowserStatusValue.setText(loginString)
-        if loginStatus == 0:
-            self.lblBrowserLoginValue.setText(self.bi.firstAccessDt.isoformat())
-            lodt = self.bi.getTimeUntilLogout()
-            # remove microseconds from log out time
-            logoutstr = str(lodt).split(".")[0]
-            self.lblBrowserLogoutValue.setText(logoutstr)
-        else:
-            self.lblBrowserLoginValue.setText("")
-            self.lblBrowserLogoutValue.setText("")
+        pass
 
     def onConnectionInfoUpdate(self, connectInfo):
         if connectInfo.status != self.lblConStatusValue.text():
