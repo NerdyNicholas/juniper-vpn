@@ -1,4 +1,4 @@
-import sys
+import sys, traceback, logging
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import QObject
 
@@ -11,7 +11,6 @@ import time
 from datetime import datetime, timedelta
 
 import threading
-import Queue
 
 class SystemTrayIcon(QtGui.QSystemTrayIcon):
 
@@ -37,33 +36,67 @@ class UpdateThread(QtCore.QThread):
         while not self.stop:
             time.sleep(1)
 
+class BackgroundThread(QtCore.QThread):
+
+    started = QtCore.pyqtSignal()
+    finished = QtCore.pyqtSignal()
+    errored = QtCore.pyqtSignal(object)
+
+    def __init__(self, bgFunction, onStart=None, onFinish=None, onError=None):
+        QtCore.QThread.__init__(self)
+        self.bgFunction = bgFunction
+        if not onStart is None:
+            self.started.connect(onStart)
+        if not onFinish is None:
+            self.finished.connect(onFinish)
+        if not onError is None:
+            self.errored.connect(onError)
+        self.start()
+
+    def run(self):
+        self.started.emit()
+        try:
+            self.bgFunction()
+        except Exception as e:
+            print e
+            traceback.print_exc()
+            self.errored.emit(e)
+        finally:
+            self.finished.emit()
 
 class MainWindow(QtGui.QMainWindow):
 
     connectInfoUpdated = QtCore.pyqtSignal(object)
+    signInStatusUpdated = QtCore.pyqtSignal(object)
+    errorEncountered = QtCore.pyqtSignal(object)
 
     def __init__(self, app):
         super(MainWindow, self).__init__()
         self.app = app
         self.buildUi()
 
+        # load the config, update the config tab
         self.configFile = os.path.expanduser("~/.config/junipergui/junipergui.ini")
         self.loadConfig()
         self.updateConfigTab()
 
+        self.bgSignInThread = None
         self.exitOnClose = False
 
         self.jc = JuniperClient()
+        self.jc.statusUpdatedCb = self.onJuniperClientUpdated
+        self.setJuniperConfig()
 
         self.ciUpdated = datetime.fromtimestamp(0)
         self.connectInfoUpdated.connect(self.onConnectionInfoUpdate)
+        self.signInStatusUpdated.connect(self.onSignInStatusUpdated)
+        self.errorEncountered.connect(self.onErrorEncountered)
 
         self.updateTimer = QtCore.QTimer()
         self.updateTimer.timeout.connect(self.onUpdateTimer)
         self.updateTimer.start(1000)
 
-        self.connectInfoThread = threading.Thread(target = self.connectInfoThreadRun)
-        self.connectInfoThread.start()
+        self.jc.startConnectThread()
 
     def buildUi(self):
         # create tabs
@@ -98,48 +131,50 @@ class MainWindow(QtGui.QMainWindow):
         self.btnDisconnect.clicked.connect(self.disconnect)
 
     def buildSignInTab(self):
-        self.sitab = {};
-
         self.buildSignInForm()
         self.buildSignInStatus()
 
         self.sitab = QtGui.QVBoxLayout()
         self.sitab.addWidget(self.qtsis['gb'])
-        self.sitab.addLayout(self.tabSignInLayout)
+        self.sitab.addWidget(self.qtsif['gb'])
 
     def buildSignInForm(self):
+        self.qtsif = {}
         # create widgets for logging in
-        self.lblUser = QtGui.QLabel()
-        self.lblUser.setText("Username:")
-        self.leUser = QtGui.QLineEdit()
-        self.lblPin = QtGui.QLabel()
-        self.lblPin.setText("Pin:")
-        self.lePin = QtGui.QLineEdit()
-        self.lePin.setMaxLength(8)
-        self.lePin.setEchoMode(QtGui.QLineEdit.Password)
-        self.lblToken = QtGui.QLabel()
-        self.lblToken.setText("Token:")
-        self.leToken = QtGui.QLineEdit()
-        self.btnSignIn = QtGui.QPushButton("Sign In")
-        self.btnSignOut = QtGui.QPushButton("Sign Out")
+        self.qtsif['lblUser'] = QtGui.QLabel("Username:")
+        self.qtsif['leUser'] = QtGui.QLineEdit()
+        self.qtsif['lblPin'] = QtGui.QLabel("Pin:")
+        self.qtsif['lePin'] = QtGui.QLineEdit()
+        self.qtsif['lePin'].setMaxLength(8)
+        self.qtsif['lePin'].setMaximumWidth(75)
+        self.qtsif['lePin'].setEchoMode(QtGui.QLineEdit.Password)
+        self.qtsif['lblToken'] = QtGui.QLabel("Token:")
+        self.qtsif['leToken'] = QtGui.QLineEdit()
+        self.qtsif['leToken'].setMaxLength(12)
+        self.qtsif['leToken'].setMaximumWidth(75)
+        self.qtsif['btnSignIn'] = QtGui.QPushButton("Sign In")
+        self.qtsif['btnSignOut'] = QtGui.QPushButton("Sign Out")
 
-        self.btnSignIn.clicked.connect(self.signIn)
-        #self.btnSignOut.clicked.connect(self.signOut)
+        self.qtsif['btnSignIn'].clicked.connect(self.signIn)
+        self.qtsif['btnSignOut'].clicked.connect(self.signOut)
 
         # buttons layout
-        self.btnsSignIn = QtGui.QHBoxLayout()
-        self.btnsSignIn.addWidget(self.btnSignIn)
-        self.btnsSignIn.addWidget(self.btnSignOut)
+        self.qtsif['btnsLayout'] = QtGui.QHBoxLayout()
+        self.qtsif['btnsLayout'].addWidget(self.qtsif['btnSignIn'])
+        self.qtsif['btnsLayout'].addWidget(self.qtsif['btnSignOut'])
 
         # create layout for sign in widgets
-        self.tabSignInLayout = QtGui.QGridLayout()
-        self.tabSignInLayout.addWidget(self.lblUser, 0, 0)
-        self.tabSignInLayout.addWidget(self.leUser, 0, 1)
-        self.tabSignInLayout.addWidget(self.lblPin, 1, 0)
-        self.tabSignInLayout.addWidget(self.lePin, 1, 1)
-        self.tabSignInLayout.addWidget(self.lblToken, 2, 0)
-        self.tabSignInLayout.addWidget(self.leToken, 2, 1)
-        self.tabSignInLayout.addLayout(self.btnsSignIn, 3, 0, 1, 2)
+        self.qtsif['layout'] = QtGui.QGridLayout()
+        self.qtsif['layout'].addWidget(self.qtsif['lblUser'], 0, 0)
+        self.qtsif['layout'].addWidget(self.qtsif['leUser'], 0, 1)
+        self.qtsif['layout'].addWidget(self.qtsif['lblPin'], 1, 0)
+        self.qtsif['layout'].addWidget(self.qtsif['lePin'], 1, 1)
+        self.qtsif['layout'].addWidget(self.qtsif['lblToken'], 2, 0)
+        self.qtsif['layout'].addWidget(self.qtsif['leToken'], 2, 1)
+        self.qtsif['layout'].addLayout(self.qtsif['btnsLayout'], 3, 0, 1, 2)
+
+        self.qtsif['gb'] = QtGui.QGroupBox('Sign In Credentials')
+        self.qtsif['gb'].setLayout(self.qtsif['layout'])
 
     def buildSignInStatus(self):
         self.qtsis = {}
@@ -312,47 +347,77 @@ class MainWindow(QtGui.QMainWindow):
         self.configUi['keepAlive']['edit'].setText(self.config.get('junipergui', 'keepAlive'))
         self.configUi['autoLogout']['edit'].setText(self.config.get('junipergui', 'autoLogout'))
 
+    def setJuniperConfig(self):
+        vpnHost = self.config.get('junipergui', 'vpnHost')
+        vpnPort = int(self.config.get('junipergui', 'vpnPort'))
+        self.jc.setConfig(vpnHost, vpnPort, 'url_15', 'realm')
+
+    def showError(self, title, text):
+        w = QtGui.QWidget()
+        QtGui.QMessageBox.critical(w, title, text)
+
     def signIn(self):
-        pass
+        if not self.bgSignInThread is None:
+            self.showError("Error Signing In", "Sign in/out already in progress")
+            return
+        self.bgSignInThread = BackgroundThread(self.signInBg, onFinish=self.onSignInFinished, onError=self.onErrorEncountered)
+
+    def signInBg(self):
+        if  not self.jc.checkSignIn():
+            self.jc.signIn(self.qtsif['leUser'].text(), self.qtsif['lePin'].text(), self.qtsif['leToken'].text())
+            self.connect()
+        else:
+            self.errorEncountered.emit("You appear to already be signed in, Sign Out before signing in again")
+
+    def onSignInFinished(self):
+        self.bgSignInThread = None
+
+    def onErrorEncountered(self, e):
+        self.showError( "Error", "An error was encountered:\n%s"  % e)
+
+    def signOut(self):
+        if not self.bgSignInThread is None:
+            self.showError("Error Signing Out", "Sign in/out already in progress")
+            return
+        self.bgSignInThread = BackgroundThread(self.signOutBg, onFinish=self.onSignInFinished, onError=self.onErrorEncountered)
+
+    def signOutBg(self):
+        self.jc.checkSignIn()
+        self.jc.signOut()
 
     def connect(self):
-        w = QtGui.QWidget()
-        
         if not self.jc.checkForNcui():
-            QtGui.QMessageBox.critical(w, "Error Connecting", "The ncui binary does not exist at %s. It must be created with the command: %s")
+            self.showError("Error Connecting", "The ncui wrapper does not exist.")
         try:
-            if self.bi.getLoginStatus() != 0:
-                QtGui.QMessageBox.critical(w, "Error Connecting", "You must login to the vpn website using firefox before you can connect.")
+            if  not self.jc.checkSignIn():
+                self.showError("Error Connecting", "You must sign in before you can connect.")
             else:
-                self.jc.connect(self.bi.DSID)
+                self.jc.connect()
         except Exception as e:
-            QtGui.QMessageBox.critical(w, "Error Connecting", "An error was encountered when connecting: %s"  % e)
+            self.showError("Error Connecting", "An error was encountered when connecting: %s"  % e)
+            print e
+            traceback.print_exc()
 
     def disconnect(self):
         self.jc.disconnect()
 
-    def signout(self):
-        pass
-
     def stop(self):
-        self.stopConnectInfoThread = True
         self.updateTimer.stop()
         self.jc.stopConnectThread()
 
-    def connectInfoThreadRun(self):
-        self.stopConnectInfoThread = False
-        while not self.stopConnectInfoThread:
-            try:
-                ci = self.jc.queueCi.get(timeout=1)
-                self.connectInfoUpdated.emit(ci)
-            except Queue.Empty:
-                pass
+    def onJuniperClientUpdated(self, connectInfo, signInStatus):
+        self.connectInfoUpdated.emit(connectInfo)
+        self.signInStatusUpdated.emit(signInStatus)
 
     def onUpdateTimer(self):
-        pass
+        self.signInStatusUpdated.emit(self.jc.getSignInStatus())
 
-    def onBrowserLoginInfoUpdated(self):
-        pass
+    def onSignInStatusUpdated(self, signInStatus):
+        if self.qtsis['lblStatusValue'].text() != signInStatus['status']:
+            self.tray.showMessage("Juniper VPN", signInStatus['status'])
+        self.qtsis['lblStatusValue'].setText(signInStatus['status'])
+        self.qtsis['lblFirstAccessValue'].setText(signInStatus['first'])
+        self.qtsis['lblLastAccessValue'].setText(signInStatus['last'])
 
     def onConnectionInfoUpdate(self, connectInfo):
         if connectInfo.status != self.lblConStatusValue.text():
@@ -362,10 +427,11 @@ class MainWindow(QtGui.QMainWindow):
         self.lblConIpValue.setText(connectInfo.ip)
         self.lblBytesRecvValue.setText(str(connectInfo.bytesRecv))
         self.lblBytesSentValue.setText(str(connectInfo.bytesSent))
-        self.lblDurationValue.setText(str(connectInfo.duration))
+        self.lblDurationValue.setText(str(connectInfo.duration).split('.')[0])
         self.lblKeepAliveValue.setText(connectInfo.keepAliveStatus)
 
 def main():
+    logging.basicConfig(level=logging.DEBUG)
     #QtGui.QApplication.setStyle("plastique")
     app = QtGui.QApplication(sys.argv)
     mw = MainWindow(app)

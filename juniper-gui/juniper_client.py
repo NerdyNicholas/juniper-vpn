@@ -7,7 +7,6 @@ import threading
 import re
 import copy
 from enum import Enum
-import Queue
 import logging
 
 class HostChecker:
@@ -34,6 +33,8 @@ class HostChecker:
         self.hcpid = None
 
     def startHostChecker(self, params):
+        self.stopHostChecker()
+
         # check params passed to host checker and use defaults for any not set
         paramStr = ''
         for param in HostChecker.defaultParams.keys():
@@ -74,20 +75,7 @@ class HostChecker:
                     self.hcpid.kill()
             else:
                 print self.hcpid.returncode
-        # second kill any processes we didn't start
-        try:
-            cmd = 'ps aux | grep java | grep net.juniper'
-            pids = map(int, subprocess.check_output(shlex.split(cmd)).split())
-            for pid in pids:
-                os.kill(pid, signal.SIGTERM)
-            if len(pids) > 0: time.sleep(1)
-            pids = map(int, subprocess.check_output(shlex.split(cmd)).split())
-            for pid in pids:
-                os.kill(pid, signal.SIGKILL)
-            if len(pids) > 0: time.sleep(1)
-        except:
-            # if no pids are found, will throw an exception or if pid doesn't exist for kill
-            pass
+        self.hcpid = None
 
     def send(self, data):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -137,6 +125,67 @@ class ConnectionInfo:
     startDateTime = datetime.fromtimestamp(0)
     keepAliveStatus = ""
 
+class SignInStatus:
+
+    def __init__(self):
+        self.signedIn = False
+        self.status = 'Uknown'
+        self.first = ''
+        self.last = ''
+        self.dt0 = datetime.fromtimestamp(0)
+
+    def updateStatus(self, dsid, first, last):
+        if dsid is None:
+            self.signedIn = False
+            self.status = 'Not Signed In'
+            self.first = ''
+            self.last = ''
+            self.firstdt = self.dt0
+            self.lastdt = self.dt0
+            return
+        self.firstdt = self.parseDt(first)
+        self.lastdt = self.parseDt(last)
+
+        if self.firstdt > self.dt0:
+            if self.isElasped(self.firstdt, timedelta(hours=24)):
+                self.status = 'Signed Out, Session Expired'
+                self.signedIn = False
+            else:
+                self.status = 'Signed in'
+                self.signedIn = True
+            self.first = self.firstdt.isoformat()
+        else:
+            self.first = ''
+        
+        if self.lastdt > self.dt0:
+            if self.isElasped(self.lastdt, timedelta(hours=1)):
+                self.status = 'Signed Out Due to Inactivity'
+                self.signedIn = False
+            else:
+                self.status = 'Signed in'
+                self.signedIn = True
+            self.last = self.firstdt.isoformat()
+        else:
+            self.last = ''
+
+    def isElasped(self, dt, td):
+        elapsed = datetime.now() - dt
+        return elapsed > td
+
+    def parseDt(self, dtstr):
+        try:
+            dt = datetime.fromtimestamp(int(dtstr))
+            return dt
+        except:
+            return datetime.fromtimestamp(0)
+
+    def __str__(self):
+        string = '%s\n%s\n%s\n' %( self. status, self.first, self.last )
+        return string
+
+    def getDict(self):
+        return {'status': self.status, 'first': self.first, 'last': self.last}
+
 class JuniperClient:
     """
     Class to sign in/out, run host checker, and connect to a Juniper VPN.
@@ -152,8 +201,7 @@ class JuniperClient:
         self.ncdir = os.path.join(self.jndir, 'network_connect/')
         self.cert = os.path.join(self.jndir, "network_connect/ssl.crt")
 
-        # the ncui wrapper is distributed with this script in the same directory
-        #self.ncui = os.path.join(os.path.dirname(os.path.realpath(__file__)), "ncui_wrapper")
+        # the ncui wrapper has to be run from the network_connect directory
         self.ncui = os.path.join(self.ncdir, 'ncui_wrapper')
 
         # create cookie jar and store cookies in juniper directory
@@ -165,7 +213,7 @@ class JuniperClient:
         self.host = ""
         self.DSID = ""
 
-        # create ssl opener with our cookie jar to be use for all the web based interactions
+        # create ssl opener with our cookie jar to be used for all the web based interactions
         self.opener = urllib2.build_opener(urllib2.HTTPSHandler(context = ssl._create_unverified_context()), urllib2.HTTPCookieProcessor(self.cj))
         self.opener.addheaders = [('User-agent', 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:48.0) Gecko/20100101 Firefox/48.0')]
 
@@ -175,8 +223,13 @@ class JuniperClient:
         self.doDisconnect = False
         self.isConnected = False
 
+        # create sign in status and update based on currently loaded cookies
+        self.signInStatus = SignInStatus()
+        self.signInStatus.updateStatus(self.getCookie('DSID'), self.getCookie('DSFirstAccess'), self.getCookie('DSLastAccess'))
+
         self.connectInfo = ConnectionInfo()
-        self.queueCi = Queue.Queue()
+
+        self.statusUpdatedCb = self.onStatusUpdatedCb
 
     def checkForNcui(self):
         return os.path.exists(self.ncui)
@@ -219,41 +272,6 @@ class JuniperClient:
             params[parts[1]] = parts[3]
         return params
 
-    def isSignedIn(self):
-        # no DSID value means not signed in yet
-        if self.getCookie('DSID') is None:
-            return False
-
-        # when first signed in, the DSFirstAccess cookie is set,
-        # 24 hours after DSFirstAccess the user is auto signed out
-        # the DSLastAccess cookie is set/updated each time we open an url on the vpn site
-        # the last access time appears to be updated based on the VPN connection 
-        # (last packet from our host to the vpn?)
-        # if last access is greater than an hour? we are automatically signed out
-        try:
-            # check time since first access
-            firstAccess = self.getCookie('DSFirstAccess')
-            fadt = datetime.fromtimestamp(int(firstAccess))
-            timeSinceFirstAccess = datetime.now() - fadt
-            if timeSinceFirstAccess > timedelta(hours=24):
-                return False
-            logging.debug('Time since first access %s' % timeSinceFirstAccess)
-            
-            # time since first access is ok, check time since last access
-            lastAccess = self.getCookie('DSLastAccess')
-            if lastAccess is None:
-                # if last access isn't set, assume we just signed in and last access has not been updated
-                return True
-            ladt = datetime.fromtimestamp(int(lastAccess))
-            timeSinceLastAccess = datetime.now() - ladt
-            if timeSinceLastAccess > timedelta(hours=1):
-                return False
-            logging.debug('Time since last access %s' % timeSinceLastAccess)
-            return True
-        except Exception as e:
-            logging.error('Error checking is signed in: %s' % e)
-            return False
-
     def checkSignIn(self):
         """
         Accesses the vpn home index.cgi with current cookies.  If we are signed in, the DSLastAccess
@@ -264,7 +282,8 @@ class JuniperClient:
         request = self.opener.open(self.homeurl)
         resp = request.read()
         self.cj.save()
-        return self.isSignedIn()
+        self.signInStatus.updateStatus(self.getCookie('DSID'), self.getCookie('DSFirstAccess'), self.getCookie('DSLastAccess'))
+        return self.signInStatus.signedIn
 
     def signIn(self, username, pin, token):
         # How sign in works
@@ -292,20 +311,25 @@ class JuniperClient:
                                       'pin'       : pin,
                                       'token'     : token})
         logging.debug('Logging in with parameters %s' % loginParams)
+        self.updateSignInStatus('Signing In with username %s' % username)
         request = self.opener.open(self.loginurl, loginParams)
         resp = request.read()
         self.cj.save()
 
         if "Invalid username or password" in resp:
+            self.updateSignInStatus('Sign in failed, invalid username or password')
             raise Exception("Invalid username or password, re-enter your information and try again")
 
         if 'Host Checker' in resp:
+            self.updateSignInStatus('Running host checker')
             resp = self.checkHost(request, resp)
 
         self.DSID = self.getCookie('DSID')
         if self.DSID is None:
+            self.updateSignInStatus('Sign in failed, DSID not found after host check')
             logging.error('Login failed, DSID not found in sign in response')
             raise Exception('Failed to get DSID when signing in')
+        self.updateSignInStatus('Sign in successful')
         logging.debug('Logged in and got DSID as %s' % self.DSID)
 
         # check for other login sessions after host check
@@ -330,12 +354,14 @@ class JuniperClient:
 
         # make sure the host checker jar is already downloaded
         if not os.path.exists(os.path.join(self.jndir, 'tncc.jar')):
+            self.updateSignInStatus('Host check failed, missing tncc.jar')
             logging.error('Cannot run host checker, tncc.jar does not exist at %s' % os.path.join(self.jndir, 'tncc.jar'))
             raise Exception("VPN requires host checker but tncc.jar does not exist. Please login from a browser to download components.")
 
         # make sure we got the preauth key
         preauth = self.getCookie('DSPREAUTH')
         if preauth is None:
+            self.updateSignInStatus('Host check failed, missing  DSPREAUTH')
             logging.error('Preauth key not found in login response.')
             raise Exception('Host check failed, failed to get DSPREAUTH cookie')
 
@@ -358,6 +384,7 @@ class JuniperClient:
         self.cj.set_cookie(cookie)
         # set params needed to send the host check response key
         params = urllib.urlencode({'loginmode'  : 'mode_postAuth', 'postauth'  : 'state_%s' % stateid})
+        self.updateSignInStatus('Sending host check response key')
         logging.debug('Sending preauth %s' % params)                                
         request = self.opener.open(self.loginurl, params)
         resp = request.read()
@@ -365,6 +392,7 @@ class JuniperClient:
 
         preauth = self.getCookie('DSPREAUTH')
         if preauth is None:
+            self.updateSignInStatus('Host check failed, no response to post auth key')
             logging.error('Host check failed, no preauth cookie in response to host check post auth')
             raise Exception('Host check failed, failed to get DSPREAUTH cookie')
         
@@ -373,11 +401,14 @@ class JuniperClient:
         return resp
     
     def signOut(self):
+        self.updateSignInStatus('Signing out')
         request = self.opener.open(self.logouturl)
         resp = request.read()
         if not 'Your session has been terminated' in resp:
+            self.updateSignInStatus('Sign out failed')
             # signout failed, maybe user no longer has network connection
             return False
+        self.updateSignInStatus('Sign out succeeded')
         return True
 
     def getDevInfo(self, dev):
@@ -401,9 +432,13 @@ class JuniperClient:
         ci = copy.copy(self.connectInfo)
         return ci
 
+    def getSignInStatus(self):
+        return self.signInStatus.getDict()
+
     def startConnectThread(self):
-        self.connectThread = threading.Thread(target = self.connectThreadRun)
-        self.connectThread.start()
+        if self.connectThread is None:
+            self.connectThread = threading.Thread(target = self.connectThreadRun)
+            self.connectThread.start()
 
     def stopConnectThread(self):
         self.stop = True
@@ -415,20 +450,26 @@ class JuniperClient:
         self.stopNCui()
         self.hostChecker.stopHostChecker()
 
-    def connect(self, DSID = None):
-        if DSID is None:
-            DSID = self.getCookie('DSID')
-        if len(DSID) == 0:
+    def connect(self):
+        DSID = self.getCookie('DSID')
+        if DSID is None or len(DSID) == 0:
             raise Exception("Can't connect, DSID value is invalid.")
-        self.DSID = DSID
         self.doConnect = True
+
+    def onStatusUpdatedCb(self, connectInfo, signInStatus):
+        #print 'got default status updated'
+        pass
 
     def updateConnectInfo(self, status = "", ip = "", sent = 0, recv = 0):
         self.connectInfo.status = status
         self.connectInfo.ip = ip
         self.connectInfo.bytesRecv = sent
         self.connectInfo.bytesSent = recv
-        self.queueCi.put(self.connectInfo)
+        self.statusUpdatedCb( self.connectInfo, self.signInStatus.getDict())
+
+    def updateSignInStatus(self, status = ""):
+        self.signInStatus.status = status
+        self.statusUpdatedCb( self.connectInfo, self.signInStatus.getDict())
 
     def checkNetwork(self):
         try:
@@ -530,8 +571,8 @@ class JuniperClient:
     def startNcui(self):
         self.stopNCui()
         cmd = '%s -h %s -c DSID=%s -f %s' % (self.ncui, self.host, self.DSID, self.cert)
+        logging.debug('Starting ncui with command: %s' % cmd)
         cmd = shlex.split(cmd)
-        logging.debug('Starting ncui with command: %s' % ' '.join(cmd))
         self.ncuiProc = subprocess.Popen(cmd, stdin=subprocess.PIPE, cwd=self.ncdir)
         # send <enter> to Password prompt that pops up after
         # starting the NCUI binary
@@ -564,7 +605,10 @@ class JuniperClient:
             # if no pids are found, will throw an exception or if pid doesn't exist for kill
             pass
 
-
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     jc = JuniperClient()
+    
+    #jc.checkSignIn()
+    #print jc.signInStatus
+    jc.updateConnectInfo('idk')
