@@ -102,8 +102,11 @@ class HostChecker:
             resp = self.send(data)
         except socket.timeout:
             # ignore socket timeout which is expected since recv buffer will not fill up entirely
+            print 'Got socket timeout exception, ignoring...'
             pass
         resp = resp.splitlines()
+        if len(resp) < 1:
+            raise Exception('No response from host checker')
         if not '200' in resp[0]:
             raise Exception('Invalid response from host checker %s' % resp[0])
         return resp
@@ -185,6 +188,21 @@ class SignInStatus:
 
     def getDict(self):
         return {'status': self.status, 'first': self.first, 'last': self.last}
+
+
+class JuniperClientInterface:
+    """ Class that should be inherited from and overridden to get status callbacks """
+    def __init__(self):
+        pass
+
+    def onSignInStatusUpdated(self):
+        pass
+
+    def onConnectionInfoUpdated(self):
+        pass
+
+    def onSslCertChanged(self, newcert, oldcert=None):
+        pass
 
 class JuniperClient:
     """
@@ -608,7 +626,6 @@ class JuniperClient:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     jc = JuniperClient()
-    
     #jc.checkSignIn()
     #print jc.signInStatus
     jc.updateConnectInfo('idk')
