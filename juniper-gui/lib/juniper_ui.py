@@ -1,16 +1,14 @@
 import sys, traceback, logging
-from PyQt4 import QtGui, QtCore
-from PyQt4.QtCore import QObject
-
-from juniper_client import JuniperClient
-
 import os
-import sqlite3
 import ConfigParser
 import time
 from datetime import datetime, timedelta
 
-import threading
+from PyQt4 import QtGui, QtCore
+from PyQt4.QtCore import QObject
+
+from juniper_client import JuniperClient
+from util import BackgroundThread
 
 class SystemTrayIcon(QtGui.QSystemTrayIcon):
 
@@ -21,58 +19,16 @@ class SystemTrayIcon(QtGui.QSystemTrayIcon):
         self.exitAction.triggered.connect(QtCore.QCoreApplication.instance().quit)
         self.setContextMenu(self.menu)
 
-class UpdateThread(QtCore.QThread):
-    browserInfoUpdated = QtCore.pyqtSignal()
-
-    def __init__(self):
-        QtCore.QThread.__init__(self)
-        self.stop = False
-
-    def stop(self):
-        self.stop = True
-
-    def run(self):
-        biupdated = datetime.now()
-        while not self.stop:
-            time.sleep(1)
-
-class BackgroundThread(QtCore.QThread):
-
-    started = QtCore.pyqtSignal()
-    finished = QtCore.pyqtSignal()
-    errored = QtCore.pyqtSignal(object)
-
-    def __init__(self, bgFunction, onStart=None, onFinish=None, onError=None):
-        QtCore.QThread.__init__(self)
-        self.bgFunction = bgFunction
-        if not onStart is None:
-            self.started.connect(onStart)
-        if not onFinish is None:
-            self.finished.connect(onFinish)
-        if not onError is None:
-            self.errored.connect(onError)
-        self.start()
-
-    def run(self):
-        self.started.emit()
-        try:
-            self.bgFunction()
-        except Exception as e:
-            print e
-            traceback.print_exc()
-            self.errored.emit(e)
-        finally:
-            self.finished.emit()
-
 class MainWindow(QtGui.QMainWindow):
 
     connectInfoUpdated = QtCore.pyqtSignal(object)
     signInStatusUpdated = QtCore.pyqtSignal(object)
     errorEncountered = QtCore.pyqtSignal(object)
 
-    def __init__(self, app):
+    def __init__(self, app, res):
         super(MainWindow, self).__init__()
         self.app = app
+        self.res = res
         self.buildUi()
 
         # load the config, update the config tab
@@ -275,7 +231,7 @@ class MainWindow(QtGui.QMainWindow):
 
     def loadTrayIcon(self):
         #self.trayIcon = QtGui.QIcon(self.style().standardPixmap(QtGui.QStyle.SP_ComputerIcon))
-        self.trayIcon = QtGui.QIcon("networkconnect.gif")
+        self.trayIcon = QtGui.QIcon(os.path.join(self.res, "networkconnect.gif"))
         self.tray = QtGui.QSystemTrayIcon(self.trayIcon)
         self.trayMenu = QtGui.QMenu()
         self.trayExitAction = self.trayMenu.addAction("Exit")
@@ -430,14 +386,3 @@ class MainWindow(QtGui.QMainWindow):
         self.lblDurationValue.setText(str(connectInfo.duration).split('.')[0])
         self.lblKeepAliveValue.setText(connectInfo.keepAliveStatus)
 
-def main():
-    logging.basicConfig(level=logging.DEBUG)
-    #QtGui.QApplication.setStyle("plastique")
-    app = QtGui.QApplication(sys.argv)
-    mw = MainWindow(app)
-    ret = app.exec_()
-    app.deleteLater()
-    sys.exit(ret)
-
-if __name__ == '__main__':
-    main()
