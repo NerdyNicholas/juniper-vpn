@@ -1,21 +1,24 @@
+
 import os
 import logging
-import subprocess, shlex
+import subprocess
+import shlex
 import socket
+import time
 
 class HostChecker:
     """
-    The HostChecker class starts, stops, and interfaces to the java host checker which 
+    The HostChecker class starts, stops, and interfaces to the java host checker which
     is required for some juniper vpn connections.  The host checker is started with parameters
     pulled from the sign in webpage and sent the preauth key.  The host checker connects
     to the vpn and returns a response key that is used to complete the sign in.
-    """ 
+    """
 
     defaultParams = {
         'loglevel' : '2',
         'postRetries' : '6',
         'ivehost' : '',
-        'Parameter0' : '',locals
+        'Parameter0' : '',
         'locale' : 'en',
         'home_dir' : os.path.expanduser('~'),
         'user_agent' : 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:48.0) Gecko/20100101 Firefox/48.0'
@@ -37,7 +40,7 @@ class HostChecker:
             else:
                 paramStr = paramStr + param + ' "' + params[param] + '" '
 
-        # remove old narport.txt file 
+        # remove old narport.txt file
         if os.path.exists(self.narporttxt):
             os.remove(self.narporttxt)
 
@@ -46,13 +49,13 @@ class HostChecker:
         logging.debug('Staring host checker with cmd %s' % cmd)
         cmd = shlex.split(cmd)
         self.hcpid = subprocess.Popen(cmd, stdin=subprocess.PIPE)
-        
+
         # wait up to 10 seconds for narport.txt
         for i in range(1, 10):
             if os.path.exists(self.narporttxt): break
             time.sleep(1)
 
-        # open narport and get port number for socket 
+        # open narport and get port number for socket
         with open(self.narporttxt, 'r') as np:
             self.port = int(np.read())
             logging.debug('Got host checker port as %i' % self.port)
