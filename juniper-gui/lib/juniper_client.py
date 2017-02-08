@@ -1,8 +1,16 @@
 
-import os, signal, time
+import os
+import signal
+import time
 from datetime import timedelta, datetime
-import urllib, urllib2, cookielib, ssl, socket, urlparse
-import subprocess, shlex
+import urllib
+import urllib2
+import cookielib
+import ssl
+import socket
+import urlparse
+import subprocess
+import shlex
 import threading
 import re
 import copy
@@ -10,6 +18,7 @@ from enum import Enum
 import logging
 
 from hostchecker import HostChecker
+from ncui import Ncui
 
 class ConnectionInfo:
     host = ""
@@ -52,7 +61,7 @@ class SignInStatus:
             self.first = self.firstdt.isoformat()
         else:
             self.first = ''
-        
+
         if self.lastdt > self.dt0:
             if self.isElasped(self.lastdt, timedelta(hours=1)):
                 self.status = 'Signed Out Due to Inactivity'
@@ -88,10 +97,10 @@ class JuniperClientInterface:
     def __init__(self):
         pass
 
-    def onSignInStatusUpdated(self):
+    def onSignInStatusUpdated(self, status):
         pass
 
-    def onConnectionInfoUpdated(self):
+    def onConnectionInfoUpdated(self, info):
         pass
 
     def onSslCertChanged(self, newcert, oldcert=None):
@@ -100,36 +109,26 @@ class JuniperClientInterface:
 class JuniperClient:
     """
     Class to sign in/out, run host checker, and connect to a Juniper VPN.
-    The juniper ncui library is executed using a ncui wrapper which 
-    loads the ncui libray and calls the main function in the library.
-
-    User must have already logged into the VPN using a browser in order
-    to download and install the juniper client binaries needed by this script.
     """
 
     def __init__(self):
         self.jndir = os.path.expanduser("~/.juniper_networks/")
-        self.ncdir = os.path.join(self.jndir, 'network_connect/')
-        self.cert = os.path.join(self.jndir, "network_connect/ssl.crt")
-
-        # the ncui wrapper has to be run from the network_connect directory
-        self.ncui = os.path.join(self.ncdir, 'ncui_wrapper')
+        self.ncui = Ncui(self.jndir)
 
         # create cookie jar and store cookies in juniper directory
         self.cj = cookielib.LWPCookieJar(filename=os.path.join(self.jndir, 'jccl.txt'))
         if os.path.exists(self.cj.filename):
             self.cj.load()
-        
+
         self.hostChecker = HostChecker(os.path.join(self.jndir, 'tncc.jar'), os.path.join(self.jndir, 'narport.txt'))
         self.host = ""
         self.DSID = ""
 
         # create ssl opener with our cookie jar to be used for all the web based interactions
-        self.opener = urllib2.build_opener(urllib2.HTTPSHandler(context = ssl._create_unverified_context()), urllib2.HTTPCookieProcessor(self.cj))
+        self.opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ssl._create_unverified_context()), urllib2.HTTPCookieProcessor(self.cj))
         self.opener.addheaders = [('User-agent', 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:48.0) Gecko/20100101 Firefox/48.0')]
 
         self.connectThread = None
-        self.ncuiProc = None
         self.doConnect = False
         self.doDisconnect = False
         self.isConnected = False
@@ -141,9 +140,6 @@ class JuniperClient:
         self.connectInfo = ConnectionInfo()
 
         self.statusUpdatedCb = self.onStatusUpdatedCb
-
-    def checkForNcui(self):
-        return os.path.exists(self.ncui)
 
     def setConfig(self, host, port, urlnum, realm):
         self.host = host
@@ -186,9 +182,10 @@ class JuniperClient:
     def checkSignIn(self):
         """
         Accesses the vpn home index.cgi with current cookies.  If we are signed in, the DSLastAccess
-        will be updated and the isSignedIn check will pass. If we are not signed in, the vpn 
+        will be updated and the isSignedIn check will pass. If we are not signed in, the vpn
         will redirect us back to welcome.cgi and clear all the cookies including DSID.
         """
+
         logging.debug('Accessing home url %s' % self.homeurl)
         request = self.opener.open(self.homeurl)
         resp = request.read()
@@ -197,6 +194,13 @@ class JuniperClient:
         return self.signInStatus.signedIn
 
     def signIn(self, username, pin, token):
+        try:
+            self.signInTry(username, pin, token)
+        except Exception as e:
+            self.updateSignInStatus('Sign In Exception')
+            raise e
+
+    def signInTry(self, username, pin, token):
         # How sign in works
         # 1. open https connection to login url with login parameters set
         # 2. check response for login failure, already logged in, and host checker
@@ -204,14 +208,14 @@ class JuniperClient:
         # 4. once logged in/host is checked, start ncui using the DSID
 
         # not sure if the sel_auth cookie is needed, but set it here since browser does
-        cookie = cookielib.Cookie(version=0, name='sel_auth', value='otp', port=None, port_specified=False, 
-            domain=self.host, domain_specified=False, domain_initial_dot=False, path='/', 
+        cookie = cookielib.Cookie(version=0, name='sel_auth', value='otp', port=None, port_specified=False,
+            domain=self.host, domain_specified=False, domain_initial_dot=False, path='/',
             path_specified=True, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
         self.cj.set_cookie(cookie)
 
         # set cookie for DSCheckBrowser to java so vpn site will give us host check parameters for java host checker
-        cookie = cookielib.Cookie(version=0, name='DSCheckBrowser', value='java', port=None, port_specified=False, 
-            domain=self.host, domain_specified=False, domain_initial_dot=False, path='/', 
+        cookie = cookielib.Cookie(version=0, name='DSCheckBrowser', value='java', port=None, port_specified=False,
+            domain=self.host, domain_specified=False, domain_initial_dot=False, path='/',
             path_specified=True, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
         self.cj.set_cookie(cookie)
 
@@ -259,7 +263,7 @@ class JuniperClient:
         # 1. After login, the returned page gives you parameters for the host checker and a state id (via url redirection in the location header of the response) and also a preauth key
         # 2. The host checker is started with the parameters embedded in the login page
         # 3. The preauth key and host are sent to the host checker over a socket
-        # 4. The host checker responds with a key to the preauth key 
+        # 4. The host checker responds with a key to the preauth key
         # 5. The responded key is passed back to the vpn site along with some other parameters
         # 6. The vpn site responds back with a DSID needed to connect to the VPN
 
@@ -287,16 +291,16 @@ class JuniperClient:
         self.hostChecker.startHostChecker(params)
         # do the host check and get the response which contains the response key
         hcresp = self.hostChecker.doCheck(preauth, self.host)
-        
+
         # set the response key as the new DSPREAUTH cookie value
-        cookie = cookielib.Cookie(version=0, name='DSPREAUTH', value=hcresp[2], port=None, port_specified=False, 
-            domain=self.host, domain_specified=False, domain_initial_dot=False, path='/dana-na/', 
+        cookie = cookielib.Cookie(version=0, name='DSPREAUTH', value=hcresp[2], port=None, port_specified=False,
+            domain=self.host, domain_specified=False, domain_initial_dot=False, path='/dana-na/',
             path_specified=True, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
         self.cj.set_cookie(cookie)
         # set params needed to send the host check response key
         params = urllib.urlencode({'loginmode'  : 'mode_postAuth', 'postauth'  : 'state_%s' % stateid})
         self.updateSignInStatus('Sending host check response key')
-        logging.debug('Sending preauth %s' % params)                                
+        logging.debug('Sending preauth %s' % params)
         request = self.opener.open(self.loginurl, params)
         resp = request.read()
         self.cj.save()
@@ -306,11 +310,11 @@ class JuniperClient:
             self.updateSignInStatus('Host check failed, no response to post auth key')
             logging.error('Host check failed, no preauth cookie in response to host check post auth')
             raise Exception('Host check failed, failed to get DSPREAUTH cookie')
-        
+
         # send preauth cookie to host checker, not sure why this is needed
         self.hostChecker.sendCookie(preauth)
         return resp
-    
+
     def signOut(self):
         self.updateSignInStatus('Signing out')
         request = self.opener.open(self.logouturl)
@@ -358,7 +362,7 @@ class JuniperClient:
 
     def disconnect(self):
         self.doDisconnect = True
-        self.stopNCui()
+        self.ncui.stop()
         self.hostChecker.stopHostChecker()
 
     def connect(self):
@@ -419,6 +423,7 @@ class JuniperClient:
         state = State.Wait
         waitConnect = 0
         self.updateConnectInfo("Disconnected")
+
         while self.stop is False:
             devInfo = self.getDevInfo(devName)
             if len(devInfo) >= 3:
@@ -453,14 +458,14 @@ class JuniperClient:
 
             # state disconnect
             elif state == State.Disconnect:
-                self.stopNCui()
+                self.ncui.stop()
                 self.updateConnectInfo("Disconnected")
                 state = State.Wait
 
             # state start connect
             elif state == State.Connecting:
                 self.updateConnectInfo("Connecting")
-                self.startNcui()
+                self.ncui.start(self.host, self.DSID)
                 waitConnect = 0
                 state = State.ConnectWait
 
@@ -473,48 +478,11 @@ class JuniperClient:
                     state = State.Connected
                 elif waitConnect >= 5:
                     self.updateConnectInfo("Failed to Connect")
-                    self.stopNCui()
+                    self.ncui.stop()
                     state = State.Wait
 
-            time.sleep(1)
-        self.stopNCui()
-
-    def startNcui(self):
-        self.stopNCui()
-        cmd = '%s -h %s -c DSID=%s -f %s' % (self.ncui, self.host, self.DSID, self.cert)
-        logging.debug('Starting ncui with command: %s' % cmd)
-        cmd = shlex.split(cmd)
-        self.ncuiProc = subprocess.Popen(cmd, stdin=subprocess.PIPE, cwd=self.ncdir)
-        # send <enter> to Password prompt that pops up after
-        # starting the NCUI binary
-        self.ncuiProc.stdin.write("\n")
-
-    def stopNCui(self):
-        # first kill the process we have started
-        if not self.ncuiProc is None:
-            self.ncuiProc.poll()
-            if self.ncuiProc.returncode is None:
-                self.ncuiProc.terminate()
-                time.sleep(1)
-                self.ncuiProc.poll()
-                if self.ncuiProc.returncode is None:
-                    self.ncuiProc.kill()
-            else:
-                print self.ncuiProc.returncode
-
-        # second kill any processes we didn't start
-        try:
-            pids = map(int, subprocess.check_output(["pidof", "ncui_wrapper"]).split())
-            for pid in pids:
-                os.kill(pid, signal.SIGTERM)
-            if len(pids) > 0: time.sleep(1)
-            pids = map(int, subprocess.check_output(["pidof", "ncui_wrapper"]).split())
-            for pid in pids:
-                os.kill(pid, signal.SIGKILL)
-            if len(pids) > 0: time.sleep(1)
-        except:
-            # if no pids are found, will throw an exception or if pid doesn't exist for kill
-            pass
+            time.sleep(0.5)
+        self.ncui.stop()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
