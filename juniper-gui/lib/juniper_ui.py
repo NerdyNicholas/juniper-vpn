@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import QObject
 
-from juniper_client import JuniperClient
+from juniper_client import JuniperClient, JuniperClientInterface
 from util import BackgroundThread
 
 class SystemTrayIcon(QtGui.QSystemTrayIcon):
@@ -24,6 +24,20 @@ class MainWindow(QtGui.QMainWindow):
     connectInfoUpdated = QtCore.pyqtSignal(object)
     signInStatusUpdated = QtCore.pyqtSignal(object)
     errorEncountered = QtCore.pyqtSignal(object)
+
+    class clientInterface(JuniperClientInterface):
+        def __init__():
+            pass
+
+        def onSignInStatusUpdated(self, status):
+            pass
+
+        def onConnectionInfoUpdated(self, info):
+            pass
+
+        def onSslCertChanged(self, newcert, oldcert=None):
+            pass
+
 
     def __init__(self, app, res):
         super(MainWindow, self).__init__()
@@ -207,12 +221,14 @@ class MainWindow(QtGui.QMainWindow):
         fields = [
             ["vpnHost", "Host name of vpn server:", 255, 0],
             ["vpnPort", "Port to vpn server:", 5, 50],
+            ["vpnRealm", "Login realm for vpn:", 40, 200],
+            ["vpnUrlNum", "Url number used in the vpn url (e.g. url_15):", 10, 100],
             ["autoLogout", "Time until auto logout (hours):", 5, 50],
             ["keepAlive", "Time in seconds to check VPN connection and reconnect:", 5, 50]
         ]
         self.configUi = {}
         self.configUi['layout'] = QtGui.QGridLayout()
-        for row in range(0 , len(fields)):
+        for row in range(0, len(fields)):
             self.configUi[fields[row][0]] = {
                 'label': QtGui.QLabel(fields[row][1]),
                 'edit': QtGui.QLineEdit()}
@@ -280,6 +296,8 @@ class MainWindow(QtGui.QMainWindow):
         defaults = {
             'vpnHost': 'vpn.example.com',
             'vpnPort': '443',
+            'vpnRealm': 'realm',
+            'vpnUrlNum': 'url_0',
             'keepAlive': '60',
             'autoLogout': '24',
         }
@@ -288,10 +306,12 @@ class MainWindow(QtGui.QMainWindow):
         if not config.has_section('junipergui'):
             config.add_section("junipergui")
         self.config = config
-    
+
     def saveConfig(self):
         self.config.set('junipergui', 'vpnHost', self.configUi['vpnHost']['edit'].text())
         self.config.set('junipergui', 'vpnPort', self.configUi['vpnPort']['edit'].text())
+        self.config.set('junipergui', 'vpnRealm', self.configUi['vpnRealm']['edit'].text())
+        self.config.set('junipergui', 'vpnUrlNum', self.configUi['vpnUrlNum']['edit'].text())
         self.config.set('junipergui', 'keepAlive', self.configUi['keepAlive']['edit'].text())
         self.config.set('junipergui', 'autoLogout', self.configUi['autoLogout']['edit'].text())
         with open(self.configFile, 'w') as configFd:
@@ -300,13 +320,17 @@ class MainWindow(QtGui.QMainWindow):
     def updateConfigTab(self):
         self.configUi['vpnHost']['edit'].setText(self.config.get('junipergui', 'vpnHost'))
         self.configUi['vpnPort']['edit'].setText(self.config.get('junipergui', 'vpnPort'))
+        self.configUi['vpnRealm']['edit'].setText(self.config.get('junipergui', 'vpnRealm'))
+        self.configUi['vpnUrlNum']['edit'].setText(self.config.get('junipergui', 'vpnUrlNum'))
         self.configUi['keepAlive']['edit'].setText(self.config.get('junipergui', 'keepAlive'))
         self.configUi['autoLogout']['edit'].setText(self.config.get('junipergui', 'autoLogout'))
 
     def setJuniperConfig(self):
         vpnHost = self.config.get('junipergui', 'vpnHost')
         vpnPort = int(self.config.get('junipergui', 'vpnPort'))
-        self.jc.setConfig(vpnHost, vpnPort, 'url_15', 'realm')
+        vpnRealm = self.config.get('junipergui', 'vpnRealm')
+        vpnUrlNum = self.config.get('junipergui', 'vpnUrlNum')
+        self.jc.setConfig(vpnHost, vpnPort, vpnUrlNum, vpnRealm)
 
     def showError(self, title, text):
         w = QtGui.QWidget()
@@ -329,7 +353,7 @@ class MainWindow(QtGui.QMainWindow):
         self.bgSignInThread = None
 
     def onErrorEncountered(self, e):
-        self.showError( "Error", "An error was encountered:\n%s"  % e)
+        self.showError("Error", "An error was encountered:\n%s"  % e)
 
     def signOut(self):
         if not self.bgSignInThread is None:
@@ -342,8 +366,8 @@ class MainWindow(QtGui.QMainWindow):
         self.jc.signOut()
 
     def connect(self):
-        if not self.jc.checkForNcui():
-            self.showError("Error Connecting", "The ncui wrapper does not exist.")
+        #if not self.jc.checkForNcui():
+        #    self.showError("Error Connecting", "The ncui wrapper does not exist.")
         try:
             if  not self.jc.checkSignIn():
                 self.showError("Error Connecting", "You must sign in before you can connect.")
