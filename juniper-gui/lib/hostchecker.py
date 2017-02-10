@@ -28,6 +28,10 @@ class HostChecker:
         self.jar = jar
         self.narporttxt = narport
         self.hcpid = None
+        self.port = 0
+
+    def exists(self):
+        return os.path.exists(self.jar)
 
     def startHostChecker(self, params):
         self.stopHostChecker()
@@ -46,19 +50,20 @@ class HostChecker:
 
         # build the comand to start the host checker
         cmd = 'java -classpath %s net.juniper.tnc.NARPlatform.linux.LinuxHttpNAR %s' % (self.jar, paramStr)
-        logging.debug('Staring host checker with cmd %s' % cmd)
+        logging.debug('Staring host checker with cmd %s', cmd)
         cmd = shlex.split(cmd)
         self.hcpid = subprocess.Popen(cmd, stdin=subprocess.PIPE)
 
         # wait up to 10 seconds for narport.txt
         for i in range(1, 10):
-            if os.path.exists(self.narporttxt): break
+            if os.path.exists(self.narporttxt):
+                break
             time.sleep(1)
 
         # open narport and get port number for socket
         with open(self.narporttxt, 'r') as np:
             self.port = int(np.read())
-            logging.debug('Got host checker port as %i' % self.port)
+            logging.debug('Got host checker port as %i', self.port)
 
     def stopHostChecker(self):
         # first kill the process we have started
@@ -78,11 +83,11 @@ class HostChecker:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)
         sock.connect(('127.0.0.1', self.port))
-        logging.debug('Sending data to host checker %s' % data)
+        logging.debug('Sending data to host checker %s', data)
         sock.sendall(data)
         resp = sock.recv(2048)
         sock.close()
-        logging.debug('Got response from host checker %s' % resp)
+        logging.debug('Got response from host checker %s', resp)
         return resp
 
     def doCheck(self, preauth, host):
@@ -100,7 +105,6 @@ class HostChecker:
         except socket.timeout:
             # ignore socket timeout which is expected since recv buffer will not fill up entirely
             print 'Got socket timeout exception, ignoring...'
-            pass
         resp = resp.splitlines()
         if len(resp) < 1:
             raise Exception('No response from host checker')
