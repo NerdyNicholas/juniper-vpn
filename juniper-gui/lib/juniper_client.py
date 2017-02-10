@@ -114,7 +114,7 @@ class JuniperClient:
     Class to sign in/out, run host checker, and connect to a Juniper VPN.
     """
 
-    def __init__(self, intf = None):
+    def __init__(self, intf=None):
         self.jndir = os.path.expanduser("~/.juniper_networks/")
         self.ncui = Ncui(self.jndir)
 
@@ -234,7 +234,7 @@ class JuniperClient:
                                       'realm'     : self.realm,
                                       'pin'       : pin,
                                       'token'     : token})
-        logging.debug('Logging in with parameters %s' % loginParams)
+        logging.debug('Logging in with parameters %s', loginParams)
         self.updateSignInStatus('Signing In with username %s' % username)
         request = self.opener.open(self.loginurl, loginParams)
         resp = request.read()
@@ -254,7 +254,7 @@ class JuniperClient:
             logging.error('Login failed, DSID not found in sign in response')
             raise Exception('Failed to get DSID when signing in')
         self.updateSignInStatus('Sign in successful')
-        logging.debug('Logged in and got DSID as %s' % self.DSID)
+        logging.debug('Logged in and got DSID as %s', self.DSID)
 
         # check for other login sessions after host check
         if 'id="DSIDConfirmForm"' in resp:
@@ -309,7 +309,7 @@ class JuniperClient:
         # set params needed to send the host check response key
         params = urllib.urlencode({'loginmode'  : 'mode_postAuth', 'postauth'  : 'state_%s' % stateid})
         self.updateSignInStatus('Sending host check response key')
-        logging.debug('Sending preauth %s' % params)
+        logging.debug('Sending preauth %s', params)
         request = self.opener.open(self.loginurl, params)
         resp = request.read()
         self.cj.save()
@@ -458,6 +458,7 @@ class JuniperClient:
                 try:
                     if self.checkSignIn():
                         self.intf.onError("Already signed in")
+                        self.cmdState = self.connectState.Wait
                     else:
                         self.signInTry(self.username, self.pin, self.token)
                         if self.checkSignIn():
@@ -475,7 +476,8 @@ class JuniperClient:
                 except Exception as e:
                     self.intf.onError(e)
                     self.updateSignInStatus("Sign Out Exception")
-                state = self.connectState.Wait
+                state = self.connectState.Disconnect
+                self.cmdState = self.connectState.Wait
 
             # state connected
             elif state == self.connectState.Connected:
@@ -494,6 +496,7 @@ class JuniperClient:
                 self.ncui.stop()
                 self.updateConnectInfo("Disconnected")
                 state = self.connectState.Wait
+                self.cmdState = self.connectState.Wait
 
             # state start connect
             elif state == self.connectState.Connecting:
