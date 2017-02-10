@@ -106,12 +106,15 @@ class JuniperClientInterface:
     def onSslCertChanged(self, newcert, oldcert=None):
         pass
 
+    def onError(self, error):
+        pass
+
 class JuniperClient:
     """
     Class to sign in/out, run host checker, and connect to a Juniper VPN.
     """
 
-    def __init__(self):
+    def __init__(self, intf = None):
         self.jndir = os.path.expanduser("~/.juniper_networks/")
         self.ncui = Ncui(self.jndir)
 
@@ -139,7 +142,13 @@ class JuniperClient:
 
         self.connectInfo = ConnectionInfo()
 
-        self.statusUpdatedCb = self.onStatusUpdatedCb
+        if not intf is None:
+            self.intf = intf
+        else:
+            self.intf = JuniperClientInterface()
+
+        self.connectState = Enum('State', 'Wait SignIn SignOut Connected Connecting ConnectWait Disconnect')
+        self.cmdState = self.connectState.Wait
 
     def setConfig(self, host, port, urlnum, realm):
         self.host = host
@@ -194,11 +203,11 @@ class JuniperClient:
         return self.signInStatus.signedIn
 
     def signIn(self, username, pin, token):
-        try:
-            self.signInTry(username, pin, token)
-        except Exception as e:
-            self.updateSignInStatus('Sign In Exception')
-            raise e
+        self.username = username
+        self.pin = pin
+        self.token = token
+        self.cmdState = self.connectState.SignIn
+
 
     def signInTry(self, username, pin, token):
         # How sign in works
@@ -316,6 +325,9 @@ class JuniperClient:
         return resp
 
     def signOut(self):
+        self.cmdState = self.connectState.SignOut
+
+    def signOutTry(self):
         self.updateSignInStatus('Signing out')
         request = self.opener.open(self.logouturl)
         resp = request.read()
@@ -361,7 +373,7 @@ class JuniperClient:
             self.connectThread.join(2)
 
     def disconnect(self):
-        self.doDisconnect = True
+        self.cmdState = self.connectState.Disconnect
         self.ncui.stop()
         self.hostChecker.stopHostChecker()
 
@@ -369,22 +381,18 @@ class JuniperClient:
         DSID = self.getCookie('DSID')
         if DSID is None or len(DSID) == 0:
             raise Exception("Can't connect, DSID value is invalid.")
-        self.doConnect = True
-
-    def onStatusUpdatedCb(self, connectInfo, signInStatus):
-        #print 'got default status updated'
-        pass
+        self.cmdState = self.connectState.Connecting
 
     def updateConnectInfo(self, status = "", ip = "", sent = 0, recv = 0):
         self.connectInfo.status = status
         self.connectInfo.ip = ip
         self.connectInfo.bytesRecv = sent
         self.connectInfo.bytesSent = recv
-        self.statusUpdatedCb( self.connectInfo, self.signInStatus.getDict())
+        self.intf.onConnectionInfoUpdated(self.connectInfo)
 
     def updateSignInStatus(self, status = ""):
         self.signInStatus.status = status
-        self.statusUpdatedCb( self.connectInfo, self.signInStatus.getDict())
+        self.intf.onSignInStatusUpdated(self.signInStatus.getDict())
 
     def checkNetwork(self):
         try:
@@ -417,10 +425,9 @@ class JuniperClient:
 
     def connectThreadRun(self):
 
-        State = Enum('State', 'Wait Connected Connecting ConnectWait Disconnect')
         devName = "tun"
         self.stop = False
-        state = State.Wait
+        state = self.connectState.Wait
         waitConnect = 0
         self.updateConnectInfo("Disconnected")
 
@@ -434,52 +441,78 @@ class JuniperClient:
             #networkStatus =
 
             # state wait to connect/check if connected
-            if state == State.Wait:
-                if self.doConnect:
-                    self.doConnect = False
-                    state = State.Connecting
-                elif self.doDisconnect:
-                    self.doDisconnect = False
-                    state = State.Disconnect
+            if state == self.connectState.Wait:
+                if self.cmdState == self.connectState.Connecting:
+                    state = self.connectState.Connecting
+                elif self.cmdState == self.connectState.Disconnect:
+                    state = self.connectState.Disconnect
+                elif self.cmdState == self.connectState.SignIn:
+                    state = self.connectState.SignIn
+                elif self.cmdState == self.connectState.SignOut:
+                    state = self.connectState.SignOut
                 elif self.isConnected:
-                    state = State.Connected
+                    state = self.connectState.Connected
+
+            elif state == self.connectState.SignIn:
+                state = self.connectState.Wait
+                try:
+                    if self.checkSignIn():
+                        self.intf.onError("Already signed in")
+                    else:
+                        self.signInTry(self.username, self.pin, self.token)
+                        if self.checkSignIn():
+                            state = self.connectState.Connecting
+                except Exception as e:
+                    self.updateSignInStatus("Sign In Exception")
+                    self.intf.onError(e)
+                    self.cmdState = self.connectState.Wait
+
+            elif state == self.connectState.SignOut:
+                try:
+                    self.signOutTry()
+                    if self.checkSignIn():
+                        self.intf.onError("Sign out failed")
+                except Exception as e:
+                    self.intf.onError(e)
+                    self.updateSignInStatus("Sign Out Exception")
+                state = self.connectState.Wait
 
             # state connected
-            elif state == State.Connected:
+            elif state == self.connectState.Connected:
                 if not self.isConnected:
                     self.updateConnectInfo("Connection Lost")
-                    state = State.Wait
-                elif self.doDisconnect:
-                    state = State.Disconnect
+                    state = self.connectState.Wait
+                elif self.cmdState == self.connectState.Disconnect:
+                    state = self.connectState.Disconnect
                 else:
                     self.connectInfo.duration = datetime.now() - self.connectInfo.startDateTime
                     self.updateConnectInfo("Connected", devInfo[0], devInfo[1], devInfo[2])
                     # check vpn connection
 
             # state disconnect
-            elif state == State.Disconnect:
+            elif state == self.connectState.Disconnect:
                 self.ncui.stop()
                 self.updateConnectInfo("Disconnected")
-                state = State.Wait
+                state = self.connectState.Wait
 
             # state start connect
-            elif state == State.Connecting:
+            elif state == self.connectState.Connecting:
                 self.updateConnectInfo("Connecting")
                 self.ncui.start(self.host, self.DSID)
                 waitConnect = 0
-                state = State.ConnectWait
+                state = self.connectState.ConnectWait
 
             # state wait connect
-            elif state == State.ConnectWait:
+            elif state == self.connectState.ConnectWait:
                 waitConnect = waitConnect + 1
                 if self.isConnected:
                     self.connectInfo.startDateTime = datetime.now()
                     self.fixRoutes()
-                    state = State.Connected
-                elif waitConnect >= 5:
+                    state = self.connectState.Connected
+                elif waitConnect >= 10:
                     self.updateConnectInfo("Failed to Connect")
                     self.ncui.stop()
-                    state = State.Wait
+                    state = self.connectState.Wait
 
             time.sleep(0.5)
         self.ncui.stop()

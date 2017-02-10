@@ -8,7 +8,6 @@ from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import QObject
 
 from juniper_client import JuniperClient, JuniperClientInterface
-from util import BackgroundThread
 
 class SystemTrayIcon(QtGui.QSystemTrayIcon):
 
@@ -26,18 +25,21 @@ class MainWindow(QtGui.QMainWindow):
     errorEncountered = QtCore.pyqtSignal(object)
 
     class clientInterface(JuniperClientInterface):
-        def __init__():
-            pass
+        def __init__(self, parent):
+            JuniperClientInterface.__init__(self)
+            self.parent = parent
 
         def onSignInStatusUpdated(self, status):
-            pass
+            self.parent.signInStatusUpdated.emit(status)
 
         def onConnectionInfoUpdated(self, info):
-            pass
+            self.parent.connectInfoUpdated.emit(info)
 
         def onSslCertChanged(self, newcert, oldcert=None):
             pass
 
+        def onError(self, err):
+            self.parent.errorEncountered.emit(err)
 
     def __init__(self, app, res):
         super(MainWindow, self).__init__()
@@ -53,8 +55,8 @@ class MainWindow(QtGui.QMainWindow):
         self.bgSignInThread = None
         self.exitOnClose = False
 
-        self.jc = JuniperClient()
-        self.jc.statusUpdatedCb = self.onJuniperClientUpdated
+        self.intf = MainWindow.clientInterface(self)
+        self.jc = JuniperClient(self.intf)
         self.setJuniperConfig()
 
         self.ciUpdated = datetime.fromtimestamp(0)
@@ -337,46 +339,13 @@ class MainWindow(QtGui.QMainWindow):
         QtGui.QMessageBox.critical(w, title, text)
 
     def signIn(self):
-        if not self.bgSignInThread is None:
-            self.showError("Error Signing In", "Sign in/out already in progress")
-            return
-        self.bgSignInThread = BackgroundThread(self.signInBg, onFinish=self.onSignInFinished, onError=self.onErrorEncountered)
-
-    def signInBg(self):
-        if  not self.jc.checkSignIn():
-            self.jc.signIn(self.qtsif['leUser'].text(), self.qtsif['lePin'].text(), self.qtsif['leToken'].text())
-            self.connect()
-        else:
-            self.errorEncountered.emit("You appear to already be signed in, Sign Out before signing in again")
-
-    def onSignInFinished(self):
-        self.bgSignInThread = None
-
-    def onErrorEncountered(self, e):
-        self.showError("Error", "An error was encountered:\n%s"  % e)
+        self.jc.signIn(self.qtsif['leUser'].text(), self.qtsif['lePin'].text(), self.qtsif['leToken'].text())
 
     def signOut(self):
-        if not self.bgSignInThread is None:
-            self.showError("Error Signing Out", "Sign in/out already in progress")
-            return
-        self.bgSignInThread = BackgroundThread(self.signOutBg, onFinish=self.onSignInFinished, onError=self.onErrorEncountered)
-
-    def signOutBg(self):
-        self.jc.checkSignIn()
         self.jc.signOut()
 
     def connect(self):
-        #if not self.jc.checkForNcui():
-        #    self.showError("Error Connecting", "The ncui wrapper does not exist.")
-        try:
-            if  not self.jc.checkSignIn():
-                self.showError("Error Connecting", "You must sign in before you can connect.")
-            else:
-                self.jc.connect()
-        except Exception as e:
-            self.showError("Error Connecting", "An error was encountered when connecting: %s"  % e)
-            print e
-            traceback.print_exc()
+        self.jc.connect()
 
     def disconnect(self):
         self.jc.disconnect()
@@ -385,9 +354,9 @@ class MainWindow(QtGui.QMainWindow):
         self.updateTimer.stop()
         self.jc.stopConnectThread()
 
-    def onJuniperClientUpdated(self, connectInfo, signInStatus):
-        self.connectInfoUpdated.emit(connectInfo)
-        self.signInStatusUpdated.emit(signInStatus)
+    def onErrorEncountered(self, err):
+        s = str(err)
+        self.showError("Error", s)
 
     def onUpdateTimer(self):
         self.signInStatusUpdated.emit(self.jc.getSignInStatus())
