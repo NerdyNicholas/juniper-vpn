@@ -4,11 +4,8 @@ import signal
 import time
 from datetime import timedelta, datetime
 import urllib
-import urllib2
-import cookielib
-import ssl
-import socket
 import urlparse
+import ssl
 import subprocess
 import shlex
 import threading
@@ -19,6 +16,7 @@ import logging
 
 from hostchecker import HostChecker
 from ncui import Ncui
+from vpnopener import VpnOpener
 
 class ConnectionInfo:
     host = ""
@@ -85,7 +83,7 @@ class SignInStatus:
             return datetime.fromtimestamp(0)
 
     def __str__(self):
-        string = '%s\n%s\n%s\n' %( self. status, self.first, self.last )
+        string = '%s\n%s\n%s\n' %(self. status, self.first, self.last)
         return string
 
     def getDict(self):
@@ -118,27 +116,20 @@ class JuniperClient:
         self.jndir = os.path.expanduser("~/.juniper_networks/")
         self.ncui = Ncui(self.jndir)
 
-        # create cookie jar and store cookies in juniper directory
-        self.cj = cookielib.LWPCookieJar(filename=os.path.join(self.jndir, 'jccl.txt'))
-        if os.path.exists(self.cj.filename):
-            self.cj.load()
+        # create vpn opener to handle https and cookie operations
+        # cookie file will be stored in juniper directory
+        self.vpn = VpnOpener(os.path.join(self.jndir, 'jccl.txt'))
 
         self.hostChecker = HostChecker(os.path.join(self.jndir, 'tncc.jar'), os.path.join(self.jndir, 'narport.txt'))
         self.host = ""
         self.DSID = ""
 
-        # create ssl opener with our cookie jar to be used for all the web based interactions
-        self.opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ssl._create_unverified_context()), urllib2.HTTPCookieProcessor(self.cj))
-        self.opener.addheaders = [('User-agent', 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:48.0) Gecko/20100101 Firefox/48.0')]
-
         self.connectThread = None
-        self.doConnect = False
-        self.doDisconnect = False
         self.isConnected = False
 
         # create sign in status and update based on currently loaded cookies
         self.signInStatus = SignInStatus()
-        self.signInStatus.updateStatus(self.getCookie('DSID'), self.getCookie('DSFirstAccess'), self.getCookie('DSLastAccess'))
+        self.signInStatus.updateStatus(self.vpn.getCookie('DSID'), self.vpn.getCookie('DSFirstAccess'), self.vpn.getCookie('DSLastAccess'))
 
         self.connectInfo = ConnectionInfo()
 
@@ -169,16 +160,6 @@ class JuniperClient:
         with open(self.cert, mode="w") as certfile:
             certfile.write(cert)
 
-    def getCookie(self, cookie):
-        for c in self.cj:
-            if c.name == cookie:
-                return c.value
-        return None
-
-    def printCookies(self):
-        for cookie in self.cj:
-            print '%s = %s' % (cookie.name, cookie.value)
-
     def parseParams(self, text):
         params = {}
         for line in text.splitlines():
@@ -194,12 +175,9 @@ class JuniperClient:
         will be updated and the isSignedIn check will pass. If we are not signed in, the vpn
         will redirect us back to welcome.cgi and clear all the cookies including DSID.
         """
-
-        logging.debug('Accessing home url %s' % self.homeurl)
-        request = self.opener.open(self.homeurl)
-        resp = request.read()
-        self.cj.save()
-        self.signInStatus.updateStatus(self.getCookie('DSID'), self.getCookie('DSFirstAccess'), self.getCookie('DSLastAccess'))
+        logging.debug('Accessing home url %s', self.homeurl)
+        self.vpn.open(self.homeurl)
+        self.signInStatus.updateStatus(self.vpn.getCookie('DSID'), self.vpn.getCookie('DSFirstAccess'), self.vpn.getCookie('DSLastAccess'))
         return self.signInStatus.signedIn
 
     def signIn(self, username, pin, token):
@@ -216,29 +194,16 @@ class JuniperClient:
         # 3. if host check, use the DSPREAUTH cookie value to do the host check
         # 4. once logged in/host is checked, start ncui using the DSID
 
-        # not sure if the sel_auth cookie is needed, but set it here since browser does
-        cookie = cookielib.Cookie(version=0, name='sel_auth', value='otp', port=None, port_specified=False,
-            domain=self.host, domain_specified=False, domain_initial_dot=False, path='/',
-            path_specified=True, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
-        self.cj.set_cookie(cookie)
-
-        # set cookie for DSCheckBrowser to java so vpn site will give us host check parameters for java host checker
-        cookie = cookielib.Cookie(version=0, name='DSCheckBrowser', value='java', port=None, port_specified=False,
-            domain=self.host, domain_specified=False, domain_initial_dot=False, path='/',
-            path_specified=True, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
-        self.cj.set_cookie(cookie)
-
+        self.vpn.setupLoginCookies(self.host)
         # create the login parameters
         loginParams = urllib.urlencode({'username'  : username,
-                                      'password'  : pin + token,
-                                      'realm'     : self.realm,
-                                      'pin'       : pin,
-                                      'token'     : token})
+                                        'password'  : pin + token,
+                                        'realm'     : self.realm,
+                                        'pin'       : pin,
+                                        'token'     : token})
         logging.debug('Logging in with parameters %s', loginParams)
         self.updateSignInStatus('Signing In with username %s' % username)
-        request = self.opener.open(self.loginurl, loginParams)
-        resp = request.read()
-        self.cj.save()
+        resp = self.vpn.open(self.loginurl, loginParams)
 
         if "Invalid username or password" in resp:
             self.updateSignInStatus('Sign in failed, invalid username or password')
@@ -246,9 +211,9 @@ class JuniperClient:
 
         if 'Host Checker' in resp:
             self.updateSignInStatus('Running host checker')
-            resp = self.checkHost(request, resp)
+            resp = self.checkHost(self.vpn.request.get_url(), resp)
 
-        self.DSID = self.getCookie('DSID')
+        self.DSID = self.vpn.getCookie('DSID')
         if self.DSID is None:
             self.updateSignInStatus('Sign in failed, DSID not found after host check')
             logging.error('Login failed, DSID not found in sign in response')
@@ -258,18 +223,16 @@ class JuniperClient:
 
         # check for other login sessions after host check
         if 'id="DSIDConfirmForm"' in resp:
-            print resp
             logging.info('Found other active session, leaving it open and continuing')
             #formData = m/name="FormDataStr" value="([^"]+)"/
+            formData = ""
             contParams = urllib.urlencode({'btnContinue':'Continue the session', 'FormDataStr': formData})
-            request = self.opener.open(self.loginurl, contParams)
-            resp = request.read()
-            print resp
-            self.cj.save()
+            resp = self.vpn.open(self.loginurl, contParams)
 
-    def checkHost(self, request, resp):
+    def checkHost(self, url, resp):
         # How the host checker works
-        # 1. After login, the returned page gives you parameters for the host checker and a state id (via url redirection in the location header of the response) and also a preauth key
+        # 1. After login, the returned page gives you parameters for the host checker and a state id
+        # (via url redirection in the location header of the response) and also a preauth key
         # 2. The host checker is started with the parameters embedded in the login page
         # 3. The preauth key and host are sent to the host checker over a socket
         # 4. The host checker responds with a key to the preauth key
@@ -277,20 +240,20 @@ class JuniperClient:
         # 6. The vpn site responds back with a DSID needed to connect to the VPN
 
         # make sure the host checker jar is already downloaded
-        if not os.path.exists(os.path.join(self.jndir, 'tncc.jar')):
+        if not self.hostChecker.exists():
             self.updateSignInStatus('Host check failed, missing tncc.jar')
-            logging.error('Cannot run host checker, tncc.jar does not exist at %s' % os.path.join(self.jndir, 'tncc.jar'))
+            logging.error('Cannot run host checker, tncc.jar does not exist at %s', self.hostChecker.jar)
             raise Exception("VPN requires host checker but tncc.jar does not exist. Please login from a browser to download components.")
 
         # make sure we got the preauth key
-        preauth = self.getCookie('DSPREAUTH')
+        preauth = self.vpn.getCookie('DSPREAUTH')
         if preauth is None:
             self.updateSignInStatus('Host check failed, missing  DSPREAUTH')
             logging.error('Preauth key not found in login response.')
             raise Exception('Host check failed, failed to get DSPREAUTH cookie')
 
         # get the state id and realm id from the new url returned from the login
-        parsedParams = urlparse.parse_qs(request.geturl())
+        parsedParams = urlparse.parse_qs(url)
         stateid = parsedParams['id'][0].split('_')[1]
         signinRealmId = parsedParams['signinRealmId'][0]
 
@@ -300,21 +263,15 @@ class JuniperClient:
         self.hostChecker.startHostChecker(params)
         # do the host check and get the response which contains the response key
         hcresp = self.hostChecker.doCheck(preauth, self.host)
-
         # set the response key as the new DSPREAUTH cookie value
-        cookie = cookielib.Cookie(version=0, name='DSPREAUTH', value=hcresp[2], port=None, port_specified=False,
-            domain=self.host, domain_specified=False, domain_initial_dot=False, path='/dana-na/',
-            path_specified=True, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
-        self.cj.set_cookie(cookie)
+        self.vpn.setDspreauthCookie(self.host, hcresp[2])
         # set params needed to send the host check response key
         params = urllib.urlencode({'loginmode'  : 'mode_postAuth', 'postauth'  : 'state_%s' % stateid})
         self.updateSignInStatus('Sending host check response key')
         logging.debug('Sending preauth %s', params)
-        request = self.opener.open(self.loginurl, params)
-        resp = request.read()
-        self.cj.save()
+        resp = self.vpn.open(self.loginurl, params)
 
-        preauth = self.getCookie('DSPREAUTH')
+        preauth = self.vpn.getCookie('DSPREAUTH')
         if preauth is None:
             self.updateSignInStatus('Host check failed, no response to post auth key')
             logging.error('Host check failed, no preauth cookie in response to host check post auth')
@@ -329,8 +286,7 @@ class JuniperClient:
 
     def signOutTry(self):
         self.updateSignInStatus('Signing out')
-        request = self.opener.open(self.logouturl)
-        resp = request.read()
+        resp = self.vpn.open(self.logouturl)
         if not 'Your session has been terminated' in resp:
             self.updateSignInStatus('Sign out failed')
             # signout failed, maybe user no longer has network connection
@@ -383,7 +339,7 @@ class JuniperClient:
             raise Exception("Can't connect, DSID value is invalid.")
         self.cmdState = self.connectState.Connecting
 
-    def updateConnectInfo(self, status = "", ip = "", sent = 0, recv = 0):
+    def updateConnectInfo(self, status="", ip="", sent=0, recv=0):
         self.connectInfo.status = status
         self.connectInfo.ip = ip
         self.connectInfo.bytesRecv = sent
