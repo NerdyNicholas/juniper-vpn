@@ -24,10 +24,10 @@ class VpnOpener:
         self.opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ssl._create_unverified_context()), urllib2.HTTPCookieProcessor(self.cjar))
         self.opener.addheaders = [('User-agent', agent)]
 
-    def getCookie(self, cookie):
-        for c in self.cjar:
-            if c.name == cookie:
-                return c.value
+    def getCookie(self, name):
+        for cookie in self.cjar:
+            if cookie.name == name:
+                return cookie.value
         return None
 
     def printCookies(self):
@@ -37,20 +37,23 @@ class VpnOpener:
     def setupLoginCookies(self, host):
         # not sure if the sel_auth cookie is needed, but set it here since browser does
         cookie = cookielib.Cookie(version=0, name='sel_auth', value='otp', port=None, port_specified=False,
-            domain=host, domain_specified=False, domain_initial_dot=False, path='/',
-            path_specified=True, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
+                                    domain=host, domain_specified=False, domain_initial_dot=False, path='/',
+                                    path_specified=True, secure=False, expires=None, discard=True,
+                                    comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
         self.cjar.set_cookie(cookie)
 
         # set cookie for DSCheckBrowser to java so vpn site will give us host check parameters for java host checker
         cookie = cookielib.Cookie(version=0, name='DSCheckBrowser', value='java', port=None, port_specified=False,
-            domain=host, domain_specified=False, domain_initial_dot=False, path='/',
-            path_specified=True, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
+                                    domain=host, domain_specified=False, domain_initial_dot=False, path='/',
+                                    path_specified=True, secure=False, expires=None, discard=True, comment=None,
+                                    comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
         self.cjar.set_cookie(cookie)
 
     def setDspreauthCookie(self, host, value):
         cookie = cookielib.Cookie(version=0, name='DSPREAUTH', value=value, port=None, port_specified=False,
-            domain=host, domain_specified=False, domain_initial_dot=False, path='/dana-na/',
-            path_specified=True, secure=False, expires=None, discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
+                                    domain=host, domain_specified=False, domain_initial_dot=False, path='/dana-na/',
+                                    path_specified=True, secure=False, expires=None, discard=True, comment=None,
+                                    comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
         self.cjar.set_cookie(cookie)
 
     def open(self, url, params=None):

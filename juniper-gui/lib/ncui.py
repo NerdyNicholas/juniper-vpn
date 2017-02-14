@@ -5,6 +5,7 @@ import shlex
 import subprocess
 import os
 import signal
+import ssl
 
 class Ncui:
     """
@@ -23,10 +24,19 @@ class Ncui:
 
         self.proc = None
 
-    def start(self, host, DSID):
+    def getSslCert(self, host, port=443):
+        pemcert = ssl.get_server_certificate((host, port), ssl_version=ssl.PROTOCOL_SSLv23)
+        dercert = ssl.PEM_cert_to_DER_cert(pemcert)
+        return dercert, pemcert
+
+    def saveSslCert(self, certfile, cert):
+        with open(certfile, mode="w") as certfile:
+            certfile.write(cert)
+
+    def start(self, host, dsid):
         self.stop()
-        cmd = '%s -h %s -c DSID=%s -f %s' % (self.ncui, host, DSID, self.cert)
-        logging.debug('Starting ncui with command: %s' % cmd)
+        cmd = '%s -h %s -c DSID=%s -f %s' % (self.ncui, host, dsid, self.cert)
+        logging.debug('Starting ncui with command: %s', cmd)
         cmd = shlex.split(cmd)
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, cwd=self.ncdir)
         # send <enter> to Password prompt that pops up after

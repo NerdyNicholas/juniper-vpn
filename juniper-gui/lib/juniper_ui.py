@@ -110,6 +110,9 @@ class MainWindow(QtGui.QMainWindow):
         self.sitab.addWidget(self.qtsis['gb'])
         self.sitab.addWidget(self.qtsif['gb'])
 
+        self.errorBox = QtGui.QMessageBox(self)
+        self.errorBox.setIcon(QtGui.QMessageBox.Critical)
+
     def buildSignInForm(self):
         self.qtsif = {}
         # create widgets for logging in
@@ -156,9 +159,6 @@ class MainWindow(QtGui.QMainWindow):
         self.qtsis['lblFirstAccessValue'] = QtGui.QLabel()
         self.qtsis['lblLastAccess'] = QtGui.QLabel('Last Access:')
         self.qtsis['lblLastAccessValue'] = QtGui.QLabel()
-        self.qtsis['lblTimeLeft'] = QtGui.QLabel('Time Until Auto Sign Out:')
-        self.qtsis['lblTimeLeftValue'] = QtGui.QLabel()
-
         self.qtsis['layout'] = QtGui.QGridLayout()
         self.qtsis['layout'].addWidget(self.qtsis['lblStatus'], 0, 0)
         self.qtsis['layout'].addWidget(self.qtsis['lblStatusValue'], 0, 1)
@@ -166,8 +166,6 @@ class MainWindow(QtGui.QMainWindow):
         self.qtsis['layout'].addWidget(self.qtsis['lblFirstAccessValue'], 1, 1)
         self.qtsis['layout'].addWidget(self.qtsis['lblLastAccess'], 2, 0)
         self.qtsis['layout'].addWidget(self.qtsis['lblLastAccessValue'], 2, 1)
-        self.qtsis['layout'].addWidget(self.qtsis['lblTimeLeft'], 3, 0)
-        self.qtsis['layout'].addWidget(self.qtsis['lblTimeLeftValue'], 3, 1)
 
         self.qtsis['gb'] = QtGui.QGroupBox('Sign In Status')
         self.qtsis['gb'].setLayout(self.qtsis['layout'])
@@ -335,8 +333,9 @@ class MainWindow(QtGui.QMainWindow):
         self.jc.setConfig(vpnHost, vpnPort, vpnUrlNum, vpnRealm)
 
     def showError(self, title, text):
-        w = QtGui.QWidget()
-        QtGui.QMessageBox.critical(w, title, text)
+        self.errorBox.setTitle(title)
+        self.errorBox.setText(text)
+        self.errorBox.exec_()
 
     def signIn(self):
         self.jc.signIn(self.qtsif['leUser'].text(), self.qtsif['lePin'].text(), self.qtsif['leToken'].text())
@@ -369,13 +368,13 @@ class MainWindow(QtGui.QMainWindow):
         self.qtsis['lblLastAccessValue'].setText(signInStatus['last'])
 
     def onConnectionInfoUpdate(self, connectInfo):
-        if connectInfo.status != self.lblConStatusValue.text():
-            self.tray.showMessage("Juniper VPN", connectInfo.status)
-        self.lblConHostValue.setText(connectInfo.host)
-        self.lblConStatusValue.setText(connectInfo.status)
-        self.lblConIpValue.setText(connectInfo.ip)
-        self.lblBytesRecvValue.setText(str(connectInfo.bytesRecv))
-        self.lblBytesSentValue.setText(str(connectInfo.bytesSent))
-        self.lblDurationValue.setText(str(connectInfo.duration).split('.')[0])
-        self.lblKeepAliveValue.setText(connectInfo.keepAliveStatus)
+        if connectInfo['status'] != self.lblConStatusValue.text():
+            self.tray.showMessage("Juniper VPN", connectInfo['status'])
+        self.lblConHostValue.setText(connectInfo['host'])
+        self.lblConStatusValue.setText(connectInfo['status'])
+        self.lblConIpValue.setText(connectInfo['ip'])
+        self.lblBytesRecvValue.setText(str(connectInfo['bytesRecv']))
+        self.lblBytesSentValue.setText(str(connectInfo['bytesSent']))
+        self.lblDurationValue.setText(str(connectInfo['duration']).split('.')[0])
+        self.lblKeepAliveValue.setText(connectInfo["keepAlive"])
 
