@@ -33,6 +33,16 @@ class Ncui:
         with open(certfile, mode="w") as certfile:
             certfile.write(cert)
 
+    def isRunning(self):
+        try:
+            if not self.proc is None:
+                self.proc.poll()
+                if self.proc.returncode is None:
+                    return True
+        except:
+            pass
+        return False
+
     def start(self, host, dsid):
         self.stop()
         cmd = '%s -h %s -c DSID=%s -f %s' % (self.ncui, host, dsid, self.cert)
@@ -44,17 +54,12 @@ class Ncui:
         self.proc.stdin.write("\n")
 
     def stop(self):
-        # first kill the process we have started
-        if self.proc is not None:
-            self.proc.poll()
-            if self.proc.returncode is None:
-                self.proc.terminate()
-                time.sleep(1)
-                self.proc.poll()
-                if self.proc.returncode is None:
-                    self.proc.kill()
-            else:
-                print self.proc.returncode
+        if self.isRunning():
+            self.proc.terminate()
+            time.sleep(1)
+            if self.isRunning():
+                logging.error("Failed to stop ncui")
+        self.proc = None
 
         # second kill any processes we didn't start
         try:

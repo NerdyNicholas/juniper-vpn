@@ -33,6 +33,16 @@ class HostChecker:
     def exists(self):
         return os.path.exists(self.jar)
 
+    def isRunning(self):
+        try:
+            if not self.hcpid is None:
+                self.hcpid.poll()
+                if self.hcpid.returncode is None:
+                    return True
+        except:
+            pass
+        return False
+
     def startHostChecker(self, params):
         self.stopHostChecker()
 
@@ -67,16 +77,11 @@ class HostChecker:
 
     def stopHostChecker(self):
         # first kill the process we have started
-        if not self.hcpid is None:
-            self.hcpid.poll()
-            if self.hcpid.returncode is None:
-                self.hcpid.terminate()
-                time.sleep(1)
-                self.hcpid.poll()
-                if self.hcpid.returncode is None:
-                    self.hcpid.kill()
-            else:
-                print self.hcpid.returncode
+        if self.isRunning():
+            self.hcpid.terminate()
+            time.sleep(1)
+            if self.isRunning():
+                logging.error("Failed to stop host checker")
         self.hcpid = None
 
     def send(self, data, timeout=5):
@@ -97,14 +102,13 @@ class HostChecker:
         meaning the host check was successful. Returns the host check response
         on success, raises an exception on failure.
         """
-
         data = 'start\nIC=%s\nCookie=%s\nDSSIGNIN=null\n' % (host, preauth)
         resp = ""
         try:
             resp = self.send(data)
         except socket.timeout:
             # ignore socket timeout which is expected since recv buffer will not fill up entirely
-            print 'Got socket timeout exception, ignoring...'
+            logging.warning('Got socket timeout exception, ignoring...')
         resp = resp.splitlines()
         if len(resp) < 1:
             raise Exception('No response from host checker')

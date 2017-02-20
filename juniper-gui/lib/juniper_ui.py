@@ -159,6 +159,8 @@ class MainWindow(QtGui.QMainWindow):
         self.qtsis['lblFirstAccessValue'] = QtGui.QLabel()
         self.qtsis['lblLastAccess'] = QtGui.QLabel('Last Access:')
         self.qtsis['lblLastAccessValue'] = QtGui.QLabel()
+        self.qtsis['lblHostCheck'] = QtGui.QLabel('Host Checker:')
+        self.qtsis['lblHostCheckValue'] = QtGui.QLabel()
         self.qtsis['layout'] = QtGui.QGridLayout()
         self.qtsis['layout'].addWidget(self.qtsis['lblStatus'], 0, 0)
         self.qtsis['layout'].addWidget(self.qtsis['lblStatusValue'], 0, 1)
@@ -166,6 +168,8 @@ class MainWindow(QtGui.QMainWindow):
         self.qtsis['layout'].addWidget(self.qtsis['lblFirstAccessValue'], 1, 1)
         self.qtsis['layout'].addWidget(self.qtsis['lblLastAccess'], 2, 0)
         self.qtsis['layout'].addWidget(self.qtsis['lblLastAccessValue'], 2, 1)
+        self.qtsis['layout'].addWidget(self.qtsis['lblHostCheck'], 3, 0)
+        self.qtsis['layout'].addWidget(self.qtsis['lblHostCheckValue'], 3, 1)
 
         self.qtsis['gb'] = QtGui.QGroupBox('Sign In Status')
         self.qtsis['gb'].setLayout(self.qtsis['layout'])
@@ -186,6 +190,7 @@ class MainWindow(QtGui.QMainWindow):
         self.lblDurationValue = QtGui.QLabel()
         self.lblKeepAlive = QtGui.QLabel("Keep Alive Status:")
         self.lblKeepAliveValue = QtGui.QLabel()
+        self.chkKeepAlive = QtGui.QCheckBox("Enable Keep Alive", self)
 
         self.btnConnect = QtGui.QPushButton("Connect")
         self.btnDisconnect = QtGui.QPushButton("Disconnect")
@@ -206,13 +211,14 @@ class MainWindow(QtGui.QMainWindow):
         self.connectInfoLayout.addWidget(self.lblDurationValue, 5, 1)
         self.connectInfoLayout.addWidget(self.lblKeepAlive, 6, 0)
         self.connectInfoLayout.addWidget(self.lblKeepAliveValue, 6, 1)
+        self.connectInfoLayout.addWidget(self.chkKeepAlive, 7, 0, 1, 2)
 
         # buttons layout
         self.btnsLayout = QtGui.QHBoxLayout()
         self.btnsLayout.addWidget(self.btnConnect)
         self.btnsLayout.addWidget(self.btnDisconnect)
 
-        self.connectInfoLayout.addLayout(self.btnsLayout, 7, 0, 1, 2)
+        self.connectInfoLayout.addLayout(self.btnsLayout, 8, 0, 1, 2)
 
         self.gbConnectInfo = QtGui.QGroupBox("Connection Info")
         self.gbConnectInfo.setLayout(self.connectInfoLayout)
@@ -333,17 +339,19 @@ class MainWindow(QtGui.QMainWindow):
         self.jc.setConfig(vpnHost, vpnPort, vpnUrlNum, vpnRealm)
 
     def showError(self, title, text):
-        self.errorBox.setTitle(title)
+        self.errorBox.setWindowTitle(title)
         self.errorBox.setText(text)
         self.errorBox.exec_()
 
     def signIn(self):
+        self.jc.setKeepAlive(self.chkKeepAlive.isChecked)
         self.jc.signIn(self.qtsif['leUser'].text(), self.qtsif['lePin'].text(), self.qtsif['leToken'].text())
 
     def signOut(self):
         self.jc.signOut()
 
     def connect(self):
+        self.jc.setKeepAlive(self.chkKeepAlive.isChecked)
         self.jc.connect()
 
     def disconnect(self):
@@ -361,11 +369,12 @@ class MainWindow(QtGui.QMainWindow):
         self.signInStatusUpdated.emit(self.jc.getSignInStatus())
 
     def onSignInStatusUpdated(self, signInStatus):
-        if self.qtsis['lblStatusValue'].text() != signInStatus['status']:
-            self.tray.showMessage("Juniper VPN", signInStatus['status'])
-        self.qtsis['lblStatusValue'].setText(signInStatus['status'])
+        if self.qtsis['lblStatusValue'].text() != signInStatus['signin']:
+            self.tray.showMessage("Juniper VPN", signInStatus['signin'])
+        self.qtsis['lblStatusValue'].setText(signInStatus['signin'])
         self.qtsis['lblFirstAccessValue'].setText(signInStatus['first'])
         self.qtsis['lblLastAccessValue'].setText(signInStatus['last'])
+        self.qtsis['lblHostCheckValue'].setText(signInStatus['hostCheck'])
 
     def onConnectionInfoUpdate(self, connectInfo):
         if connectInfo['status'] != self.lblConStatusValue.text():

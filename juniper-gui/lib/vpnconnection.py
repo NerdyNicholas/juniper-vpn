@@ -4,6 +4,7 @@ import shlex
 import re
 from datetime import timedelta, datetime
 import netifaces
+import logging
 from ncui import Ncui
 
 class VpnConnection:
@@ -113,4 +114,4 @@ class VpnConnection:
             cmd = shlex.split(cmd)
             retcode = subprocess.call(cmd)
             if retcode != 0:
-                print "Error fixing hijacked route: %d = %s " % (retcode, cmd)
+                logging.error("Error fixing hijacked route: %d = %s ", retcode, cmd)
