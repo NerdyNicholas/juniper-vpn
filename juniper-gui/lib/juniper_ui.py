@@ -7,7 +7,10 @@ from datetime import datetime, timedelta
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import QObject
 
-from juniper_client import JuniperClient, JuniperClientInterface
+from lib.juniper_client import JuniperClient
+from lib.vpnstatus import VpnStatus
+
+logger = logging.getLogger(__name__)
 
 class SystemTrayIcon(QtGui.QSystemTrayIcon):
 
@@ -24,23 +27,6 @@ class MainWindow(QtGui.QMainWindow):
     signInStatusUpdated = QtCore.pyqtSignal(object)
     errorEncountered = QtCore.pyqtSignal(object)
 
-    class clientInterface(JuniperClientInterface):
-        def __init__(self, parent):
-            JuniperClientInterface.__init__(self)
-            self.parent = parent
-
-        def onSignInStatusUpdated(self, status):
-            self.parent.signInStatusUpdated.emit(status)
-
-        def onConnectionInfoUpdated(self, info):
-            self.parent.connectInfoUpdated.emit(info)
-
-        def onSslCertChanged(self, newcert, oldcert=None):
-            pass
-
-        def onError(self, err):
-            self.parent.errorEncountered.emit(err)
-
     def __init__(self, app, res):
         super(MainWindow, self).__init__()
         self.app = app
@@ -55,9 +41,9 @@ class MainWindow(QtGui.QMainWindow):
         self.bgSignInThread = None
         self.exitOnClose = False
 
-        self.intf = MainWindow.clientInterface(self)
-        self.jc = JuniperClient(self.intf)
+        self.client = JuniperClient()
         self.setJuniperConfig()
+        self.client.vpnStatus.setObserver(self.onVpnStatusChanged)
 
         self.ciUpdated = datetime.fromtimestamp(0)
         self.connectInfoUpdated.connect(self.onConnectionInfoUpdate)
@@ -66,9 +52,9 @@ class MainWindow(QtGui.QMainWindow):
 
         self.updateTimer = QtCore.QTimer()
         self.updateTimer.timeout.connect(self.onUpdateTimer)
-        self.updateTimer.start(1000)
+        #self.updateTimer.start(1000)
 
-        self.jc.startConnectThread()
+        self.client.startConnectThread()
 
     def buildUi(self):
         # create tabs
@@ -273,8 +259,8 @@ class MainWindow(QtGui.QMainWindow):
         self.tray.show()
 
     def exitAction(self):
-        self.jc.disconnect()
-        self.jc.stopConnectThread()
+        self.client.disconnect()
+        self.client.stopConnectThread()
         self.stop()
         QtGui.QApplication.quit()
 
@@ -336,7 +322,7 @@ class MainWindow(QtGui.QMainWindow):
         vpnPort = int(self.config.get('junipergui', 'vpnPort'))
         vpnRealm = self.config.get('junipergui', 'vpnRealm')
         vpnUrlNum = self.config.get('junipergui', 'vpnUrlNum')
-        self.jc.setConfig(vpnHost, vpnPort, vpnUrlNum, vpnRealm)
+        self.client.setConfig(vpnHost, vpnPort, vpnUrlNum, vpnRealm)
 
     def showError(self, title, text):
         self.errorBox.setWindowTitle(title)
@@ -344,37 +330,45 @@ class MainWindow(QtGui.QMainWindow):
         self.errorBox.exec_()
 
     def signIn(self):
-        self.jc.setKeepAlive(self.chkKeepAlive.isChecked)
-        self.jc.signIn(self.qtsif['leUser'].text(), self.qtsif['lePin'].text(), self.qtsif['leToken'].text())
+        self.client.setKeepAlive(self.chkKeepAlive.isChecked)
+        self.client.signIn(self.qtsif['leUser'].text(), self.qtsif['lePin'].text(), self.qtsif['leToken'].text())
 
     def signOut(self):
-        self.jc.signOut()
+        self.client.signOut()
 
     def connect(self):
-        self.jc.setKeepAlive(self.chkKeepAlive.isChecked)
-        self.jc.connect()
+        self.client.setKeepAlive(self.chkKeepAlive.isChecked)
+        self.client.connect()
 
     def disconnect(self):
-        self.jc.disconnect()
+        self.client.disconnect()
 
     def stop(self):
         self.updateTimer.stop()
-        self.jc.stopConnectThread()
+        self.client.stopConnectThread()
 
     def onErrorEncountered(self, err):
-        s = str(err)
-        self.showError("Error", s)
+        errstr = str(err)
+        self.showError("Error", errstr)
 
     def onUpdateTimer(self):
-        self.signInStatusUpdated.emit(self.jc.getSignInStatus())
+        self.signInStatusUpdated.emit(self.client.getSignInStatus())
+        self.connectInfoUpdated.emit(self.client.vpnStatus.connection)
 
-    def onSignInStatusUpdated(self, signInStatus):
-        if self.qtsis['lblStatusValue'].text() != signInStatus['signin']:
-            self.tray.showMessage("Juniper VPN", signInStatus['signin'])
-        self.qtsis['lblStatusValue'].setText(signInStatus['signin'])
-        self.qtsis['lblFirstAccessValue'].setText(signInStatus['first'])
-        self.qtsis['lblLastAccessValue'].setText(signInStatus['last'])
-        self.qtsis['lblHostCheckValue'].setText(signInStatus['hostCheck'])
+    def onVpnStatusChanged(self):
+        self.signInStatusUpdated.emit(self.client.getSignInStatus())
+        self.connectInfoUpdated.emit(self.client.vpnStatus.connection)
+        if self.client.vpnStatus.isError:
+            err = self.client.vpnStatus.getAndClearError()
+            self.errorEncountered.emit(err)
+
+    def onSignInStatusUpdated(self, sis):
+        if self.qtsis['lblStatusValue'].text() != sis['status']:
+            self.tray.showMessage("Juniper VPN", sis['status'])
+        self.qtsis['lblStatusValue'].setText(sis['status'])
+        self.qtsis['lblFirstAccessValue'].setText(sis['first'])
+        self.qtsis['lblLastAccessValue'].setText(sis['last'])
+        self.qtsis['lblHostCheckValue'].setText(sis['hostCheck'])
 
     def onConnectionInfoUpdate(self, connectInfo):
         if connectInfo['status'] != self.lblConStatusValue.text():

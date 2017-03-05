@@ -3,11 +3,14 @@ import os
 import time
 import threading
 import logging
-from enum import Enum
 from datetime import datetime, timedelta
+from enum import Enum
 
 from lib.vpnweb import VpnWeb
 from lib.vpnconnection import VpnConnection
+from lib.vpnstatus import VpnStatus
+
+logger = logging.getLogger(__name__)
 
 class Waiter:
 
@@ -24,41 +27,21 @@ class Waiter:
     def isElapsed(self):
         return datetime.now() > (self.dt + self.td)
 
-
-class JuniperClientInterface:
-    """ Class that should be inherited from and overridden to get status callbacks """
-    def __init__(self):
-        pass
-
-    def onSignInStatusUpdated(self, status):
-        pass
-
-    def onConnectionInfoUpdated(self, info):
-        pass
-
-    def onSslCertChanged(self, newcert, oldcert=None):
-        pass
-
-    def onError(self, error):
-        pass
-
 class JuniperClient:
     """
     Class to sign in/out, run host checker, and connect to a Juniper VPN.
     """
 
-    def __init__(self, intf=None):
+    def __init__(self):
         self.jndir = os.path.expanduser("~/.juniper_networks/")
         self.vpnCon = VpnConnection(self.jndir)
-        self.vpnWeb = VpnWeb(self.jndir, self.signInStatusUpdated)
+        self.vpnStatus = VpnStatus()
+        self.vpnWeb = VpnWeb(self.jndir, self.vpnStatus)
 
         self.stop = False
 
         self.connectStatus = ""
         self.connectThread = None
-        self.intf = JuniperClientInterface()
-        if not intf is None:
-            self.intf = intf
         self.connectState = Enum('connectState', 'Wait SignIn SignOut NetworkWait Connected Connecting ConnectWait ConnectFailed Disconnect')
         self.cmdState = self.connectState.Wait
         self.state = self.connectState.Wait
@@ -89,8 +72,7 @@ class JuniperClient:
             self.keepAlive = True
         else:
             self.keepAlive = False
-            self.keepAliveStatus = ""
-            self.updateConnectInfo(self.connectStatus, "")
+            self.vpnStatus.setKeepAliveStatus("")
 
     def signIn(self, username, pin, token):
         self.vpnWeb.setCredentials(username, pin, token)
@@ -100,7 +82,7 @@ class JuniperClient:
         self.cmdState = self.connectState.SignOut
 
     def getSignInStatus(self):
-        return self.vpnWeb.getSignInStatus()
+        return self.vpnStatus.signin
 
     def disconnect(self):
         self.cmdState = self.connectState.Disconnect
@@ -108,17 +90,9 @@ class JuniperClient:
     def connect(self):
         self.cmdState = self.connectState.Connecting
 
-    def updateConnectInfo(self, status, keepAlive=None):
-        self.connectStatus = status
-        if not keepAlive is None:
-            self.keepAliveStatus = keepAlive
+    def updateConnectInfo(self):
         info = self.vpnCon.getConnectionInfo()
-        info["status"] = status
-        info["keepAlive"] = self.keepAliveStatus
-        self.intf.onConnectionInfoUpdated(info)
-
-    def signInStatusUpdated(self):
-        self.intf.onSignInStatusUpdated(self.vpnWeb.getSignInStatus())
+        self.vpnStatus.setConnectionInfo(info["host"], info["ip"], info["bytesSent"], info["bytesRecv"], info["duration"])
 
     def doWait(self):
         if self.cmdState == self.connectState.Connecting:
@@ -140,14 +114,15 @@ class JuniperClient:
         self.state = self.connectState.Wait
         try:
             if self.vpnWeb.checkSignIn():
-                self.intf.onError("Already signed in")
+                self.vpnStatus.setError("Already signed in")
             else:
                 self.vpnWeb.signInWithCredentials()
                 if self.vpnWeb.checkSignIn():
                     # go straight to connecting since if sign in passed, network is up
                     self.state = self.connectState.Connecting
         except Exception as e:
-            self.intf.onError(e)
+            self.vpnStatus.setError(e)
+            logger.exception(e)
 
     def doSignOut(self):
         self.state = self.connectState.Disconnect
@@ -155,68 +130,71 @@ class JuniperClient:
         try:
             self.vpnWeb.signOut()
             if self.vpnWeb.checkSignIn():
-                self.intf.onError("Sign out failed")
+                self.vpnStatus.setError("Sign out failed")
         except Exception as e:
-            self.intf.onError(e)
+            self.vpnStatus.setError(e)
+            logger.exception(e)
 
     def doNetworkWait(self):
         if self.waitNetwork.isElapsed():
             self.waitNetwork.reset()
             if not self.vpnCon.checkGateway():
-                self.updateConnectInfo("Waiting For Network")
+                self.vpnStatus.setConnectionStatus("Waiting For Network")
             elif self.vpnWeb.checkSignInAndError() != 0:
-                self.updateConnectInfo("Sign In Check Failed")
+                self.vpnStatus.setConnectionStatus("Sign In Check Failed")
                 self.state = self.connectState.Wait
                 self.cmdState = self.connectState.Wait
             else:
                 self.state = self.connectState.Connecting
 
     def doConnect(self):
-        self.updateConnectInfo("Connecting")
+        self.vpnStatus.setConnectionStatus("Connecting")
         self.vpnCon.connect(self.vpnWeb.dsid)
         self.waitConnected.reset()
         self.state = self.connectState.ConnectWait
 
     def doConnectWait(self):
         if self.vpnCon.isDevUp():
-            self.updateConnectInfo("Connected")
+            self.vpnStatus.setConnectionStatus("Connected")
             self.waitKeepAlive.reset()
             self.state = self.connectState.Connected
         elif self.waitConnected.isElapsed():
-            self.updateConnectInfo("Failed to Connect")
+            self.vpnStatus.setConnectionStatus("Failed to Connect")
             self.vpnCon.disconnect()
             self.state = self.connectState.ConnectFailed
 
     def doConnected(self):
-        self.updateConnectInfo(self.connectStatus)
+        self.updateConnectInfo()
         if not self.vpnCon.isDevUp():
-            self.updateConnectInfo("Connection Lost")
+            self.vpnStatus.setConnectionStatus("Connection Lost")
             self.vpnCon.disconnect()
             self.state = self.connectState.ConnectFailed
         elif self.keepAlive and self.waitKeepAlive.isElapsed():
             self.waitKeepAlive.reset()
-            self.updateConnectInfo(self.connectStatus, "Checking Connection")
+            self.vpnStatus.setKeepAliveStatus("Checking Connection")
             # connection is up but may not be passing data, check it
             if not self.vpnCon.checkGateway():
-                self.updateConnectInfo("Network Lost", "Gateway Check Failed")
+                self.vpnStatus.setConnectionStatus("Network Lost")
+                self.vpnStatus.setKeepAliveStatus("Gateway Check Failed")
                 self.vpnCon.disconnect()
+                self.waitRestart.reset()
                 self.state = self.connectState.ConnectFailed
             elif self.vpnWeb.checkSignInAndError() != 0:
-                self.updateConnectInfo("Disconnected by Keep Alive", "Sign In Check Failed")
+                self.vpnStatus.setConnectionStatus("Disconnected by Keep Alive")
+                self.vpnStatus.setKeepAliveStatus("Sign In Check Failed")
                 self.vpnCon.disconnect()
+                self.waitRestart.reset()
                 self.state = self.connectState.ConnectFailed
             else:
-                self.updateConnectInfo(self.connectStatus, "Checks succeeded")
+                self.vpnStatus.setKeepAliveStatus("Checks passed")
 
         # ignore commanded states for sign in, wait, and connect
 
     def doConnectFailed(self):
-        # if keep alive is set, retry connection
-        self.waitRestart.reset()
         if self.keepAlive:
             # update keep alive status with "waiting to restart connection"
             if self.waitRestart.isElapsed():
-                self.updateConnectInfo(self.connectStatus, "Restarting Connection")
+                self.vpnStatus.setKeepAliveStatus("Restarting Connection")
                 self.state = self.connectState.NetworkWait
         else:
             # keep alive isn't set so go back to wait state
@@ -225,14 +203,14 @@ class JuniperClient:
 
     def doDisconnect(self):
         self.vpnCon.disconnect()
-        self.updateConnectInfo("Disconnected")
+        self.vpnStatus.setConnectionStatus("Disconnected")
         self.state = self.connectState.Wait
         self.cmdState = self.connectState.Wait
 
     def connectThreadRun(self):
         self.stop = False
         self.state = self.connectState.Wait
-        self.updateConnectInfo("Disconnected")
+        self.vpnStatus.setConnectionStatus("Disconnected")
         while self.stop is False:
             self.vpnCon.updateDevInfo()
 
@@ -268,4 +246,3 @@ if __name__ == "__main__":
     jc = JuniperClient()
     #jc.checkSignIn()
     #print jc.signInStatus
-    jc.updateConnectInfo('idk')
