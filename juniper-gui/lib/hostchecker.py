@@ -6,6 +6,8 @@ import shlex
 import socket
 import time
 
+logger = logging.getLogger(__name__)
+
 class HostChecker:
     """
     The HostChecker class starts, stops, and interfaces to the java host checker which
@@ -60,7 +62,7 @@ class HostChecker:
 
         # build the comand to start the host checker
         cmd = 'java -classpath %s net.juniper.tnc.NARPlatform.linux.LinuxHttpNAR %s' % (self.jar, paramStr)
-        logging.debug('Staring host checker with cmd %s', cmd)
+        logger.debug('Staring host checker with cmd %s', cmd)
         cmd = shlex.split(cmd)
         self.hcpid = subprocess.Popen(cmd, stdin=subprocess.PIPE)
 
@@ -71,9 +73,9 @@ class HostChecker:
             time.sleep(1)
 
         # open narport and get port number for socket
-        with open(self.narporttxt, 'r') as np:
-            self.port = int(np.read())
-            logging.debug('Got host checker port as %i', self.port)
+        with open(self.narporttxt, 'r') as nptxt:
+            self.port = int(nptxt.read())
+            logger.debug('Got host checker port as %i', self.port)
 
     def stopHostChecker(self):
         # first kill the process we have started
@@ -81,18 +83,18 @@ class HostChecker:
             self.hcpid.terminate()
             time.sleep(1)
             if self.isRunning():
-                logging.error("Failed to stop host checker")
+                logger.error("Failed to stop host checker")
         self.hcpid = None
 
     def send(self, data, timeout=5):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)
         sock.connect(('127.0.0.1', self.port))
-        logging.debug('Sending data to host checker %s', data)
+        logger.debug('Sending data to host checker %s', data)
         sock.sendall(data)
         resp = sock.recv(2048)
         sock.close()
-        logging.debug('Got response from host checker %s', resp)
+        logger.debug('Got response from host checker %s', resp)
         return resp
 
     def doCheck(self, preauth, host):
@@ -108,7 +110,7 @@ class HostChecker:
             resp = self.send(data)
         except socket.timeout:
             # ignore socket timeout which is expected since recv buffer will not fill up entirely
-            logging.warning('Got socket timeout exception, ignoring...')
+            logger.warning('Got socket timeout exception, ignoring...')
         resp = resp.splitlines()
         if len(resp) < 1:
             raise Exception('No response from host checker')

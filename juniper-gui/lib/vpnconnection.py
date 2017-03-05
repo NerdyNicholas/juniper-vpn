@@ -7,6 +7,8 @@ import netifaces
 import logging
 from ncui import Ncui
 
+logger = logging.getLogger(__name__)
+
 class VpnConnection:
 
     def __init__(self, jndir, devname='tun'):
@@ -114,4 +116,4 @@ class VpnConnection:
             cmd = shlex.split(cmd)
             retcode = subprocess.call(cmd)
             if retcode != 0:
-                logging.error("Error fixing hijacked route: %d = %s ", retcode, cmd)
+                logger.error("Error fixing hijacked route: %d = %s ", retcode, cmd)

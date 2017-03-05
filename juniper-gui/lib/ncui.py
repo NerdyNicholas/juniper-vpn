@@ -7,6 +7,8 @@ import os
 import signal
 import ssl
 
+logger = logging.getLogger(__name__)
+
 class Ncui:
     """
     Starts and stops the ncui_wrapper.
@@ -46,7 +48,7 @@ class Ncui:
     def start(self, host, dsid):
         self.stop()
         cmd = '%s -h %s -c DSID=%s -f %s' % (self.ncui, host, dsid, self.cert)
-        logging.debug('Starting ncui with command: %s', cmd)
+        logger.debug('Starting ncui with command: %s', cmd)
         cmd = shlex.split(cmd)
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, cwd=self.ncdir)
         # send <enter> to Password prompt that pops up after
@@ -58,7 +60,7 @@ class Ncui:
             self.proc.terminate()
             time.sleep(1)
             if self.isRunning():
-                logging.error("Failed to stop ncui")
+                logger.error("Failed to stop ncui")
         self.proc = None
 
         # second kill any processes we didn't start

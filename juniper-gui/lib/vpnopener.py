@@ -4,6 +4,8 @@ import cookielib
 import os
 import ssl
 
+logger = logging.getLogger(__name__)
+
 class VpnOpener:
     """
     Class to perform https requests with cookies to the vpn web portal.
