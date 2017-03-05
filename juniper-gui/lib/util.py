@@ -1,7 +1,13 @@
 
-from PyQt4 import QtGui, QtCore
+import traceback
+
+from PyQt4 import QtCore
 
 class BackgroundThread(QtCore.QThread):
+    """
+    Executes callback function in qt thread with
+    signals for started, finished, and EOFError
+    """
 
     started = QtCore.pyqtSignal()
     finished = QtCore.pyqtSignal()
@@ -28,3 +34,4 @@ class BackgroundThread(QtCore.QThread):
             self.errored.emit(e)
         finally:
             self.finished.emit()
+
