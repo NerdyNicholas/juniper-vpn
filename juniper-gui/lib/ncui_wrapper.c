@@ -34,7 +34,7 @@ int main(int argc, char** argv)
     int newargc = 0, len;
 
     handle = dlopen("./libncui.so", RTLD_LAZY);
-    if (!handle) 
+    if (!handle)
     {
         fprintf(stderr, "%s\n", dlerror());
         exit(EXIT_FAILURE);
@@ -46,7 +46,7 @@ int main(int argc, char** argv)
     int (*ncui)(int, char**) = dlsym(handle, "main");
     ncui(argc, argv);
 
-    if ((error = dlerror()) != NULL) 
+    if ((error = dlerror()) != NULL)
     {
         fprintf(stderr, "%s\n", error);
         exit(EXIT_FAILURE);

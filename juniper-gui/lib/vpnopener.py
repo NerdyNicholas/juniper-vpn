@@ -1,6 +1,7 @@
 
 import urllib2
 import cookielib
+import logging
 import os
 import ssl
 
@@ -34,7 +35,7 @@ class VpnOpener:
 
     def printCookies(self):
         for cookie in self.cjar:
-            print '%s = %s' % (cookie.name, cookie.value)
+            logger.info('%s = %s', cookie.name, cookie.value)
 
     def setupLoginCookies(self, host):
         # not sure if the sel_auth cookie is needed, but set it here since browser does
