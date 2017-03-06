@@ -177,6 +177,7 @@ class MainWindow(QtGui.QMainWindow):
         self.lblKeepAlive = QtGui.QLabel("Keep Alive Status:")
         self.lblKeepAliveValue = QtGui.QLabel()
         self.chkKeepAlive = QtGui.QCheckBox("Enable Keep Alive", self)
+        self.chkKeepAlive.stateChanged.connect(self.onKeepAliveChanged)
 
         self.btnConnect = QtGui.QPushButton("Connect")
         self.btnDisconnect = QtGui.QPushButton("Disconnect")
@@ -330,14 +331,12 @@ class MainWindow(QtGui.QMainWindow):
         self.errorBox.exec_()
 
     def signIn(self):
-        self.client.setKeepAlive(self.chkKeepAlive.isChecked)
         self.client.signIn(self.qtsif['leUser'].text(), self.qtsif['lePin'].text(), self.qtsif['leToken'].text())
 
     def signOut(self):
         self.client.signOut()
 
     def connect(self):
-        self.client.setKeepAlive(self.chkKeepAlive.isChecked)
         self.client.connect()
 
     def disconnect(self):
@@ -346,6 +345,9 @@ class MainWindow(QtGui.QMainWindow):
     def stop(self):
         self.updateTimer.stop()
         self.client.stopConnectThread()
+
+    def onKeepAliveChanged(self):
+        self.client.setKeepAlive(self.chkKeepAlive.isChecked())
 
     def onErrorEncountered(self, err):
         errstr = str(err)

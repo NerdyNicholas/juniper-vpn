@@ -5,7 +5,6 @@ import shlex
 import subprocess
 import os
 import signal
-import ssl
 
 logger = logging.getLogger(__name__)
 
@@ -16,24 +15,15 @@ class Ncui:
     loads the ncui libray and calls the main function in the library.
     """
 
-    def __init__(self, path):
+    def __init__(self, path, cert):
         self.jndir = path
         self.ncdir = os.path.join(self.jndir, 'network_connect/')
-        self.cert = os.path.join(self.jndir, "network_connect/ssl.crt")
+        self.cert = cert
 
         # the ncui wrapper has to be run from the network_connect directory
         self.ncui = os.path.join(self.ncdir, 'ncui_wrapper')
 
         self.proc = None
-
-    def getSslCert(self, host, port=443):
-        pemcert = ssl.get_server_certificate((host, port), ssl_version=ssl.PROTOCOL_SSLv23)
-        dercert = ssl.PEM_cert_to_DER_cert(pemcert)
-        return dercert, pemcert
-
-    def saveSslCert(self, certfile, cert):
-        with open(certfile, mode="w") as certfile:
-            certfile.write(cert)
 
     def isRunning(self):
         try:

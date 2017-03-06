@@ -1,11 +1,15 @@
 
+
+from datetime import timedelta, datetime
+import re
+import logging
 import subprocess
 import shlex
-import re
-from datetime import timedelta, datetime
+import ssl
+import os
 import netifaces
-import logging
-from ncui import Ncui
+
+from lib.ncui import Ncui
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +25,27 @@ class VpnConnection:
         self.duration = timedelta()
         self.startDateTime = datetime.fromtimestamp(0)
         self.devUp = False
-        self.ncui = Ncui(self.jndir)
+        self.cert = os.path.join(self.jndir, "network_connect/ssl.crt")
+        self.ncui = Ncui(self.jndir, self.cert)
 
     def setHost(self, host):
         self.host = host
+
+    def certExists(self):
+        return os.path.exists(self.cert)
+
+    def downloadAndSaveCert(self):
+        (dercert, pemcert) = self.getSslCert(self.host)
+        self.saveSslCert(self.cert, dercert)
+
+    def getSslCert(self, host, port=443):
+        pemcert = ssl.get_server_certificate((host, port), ssl_version=ssl.PROTOCOL_SSLv23)
+        dercert = ssl.PEM_cert_to_DER_cert(pemcert)
+        return dercert, pemcert
+
+    def saveSslCert(self, certfile, cert):
+        with open(certfile, mode="w") as certfile:
+            certfile.write(cert)
 
     def connect(self, dsid):
         self.ncui.start(self.host, dsid)

@@ -46,12 +46,12 @@ class JuniperClient:
         self.cmdState = self.connectState.Wait
         self.state = self.connectState.Wait
         self.keepAlive = False
-        self.keepAliveStatus = ""
+        self.reconnectCnt = 0
 
         self.waitNetwork = Waiter(timedelta(seconds=10))
         self.waitConnected = Waiter(timedelta(seconds=5))
         self.waitKeepAlive = Waiter(timedelta(seconds=30))
-        self.waitRestart = Waiter(timedelta(seconds=60))
+        self.waitRestart = Waiter(timedelta(seconds=15))
 
     def startConnectThread(self):
         if self.connectThread is None:
@@ -132,6 +132,7 @@ class JuniperClient:
             if self.vpnWeb.checkSignIn():
                 self.vpnStatus.setError("Sign out failed")
         except Exception as e:
+            self.vpnWeb.updateStatus("Sign Out Exception")
             self.vpnStatus.setError(e)
             logger.exception(e)
 
@@ -148,14 +149,25 @@ class JuniperClient:
                 self.state = self.connectState.Connecting
 
     def doConnect(self):
-        self.vpnStatus.setConnectionStatus("Connecting")
-        self.vpnCon.connect(self.vpnWeb.dsid)
-        self.waitConnected.reset()
-        self.state = self.connectState.ConnectWait
+        try:
+            # TODO: make this a separate state
+            if not self.vpnCon.certExists():
+                self.vpnStatus.setConnectionStatus("Downloading Cert")
+                self.vpnCon.downloadAndSaveCert()
+            self.vpnStatus.setConnectionStatus("Connecting")
+            self.vpnCon.connect(self.vpnWeb.dsid)
+            self.waitConnected.reset()
+            self.state = self.connectState.ConnectWait
+        except Exception as e:
+            logger.exception(e)
+            self.vpnStatus.setError(e)
+            self.state = self.connectState.Wait
+            self.cmdState = self.connectState.Wait
 
     def doConnectWait(self):
         if self.vpnCon.isDevUp():
             self.vpnStatus.setConnectionStatus("Connected")
+            self.reconnectCnt = 0
             self.waitKeepAlive.reset()
             self.state = self.connectState.Connected
         elif self.waitConnected.isElapsed():
@@ -188,14 +200,20 @@ class JuniperClient:
             else:
                 self.vpnStatus.setKeepAliveStatus("Checks passed")
 
-        # ignore commanded states for sign in, wait, and connect
+        # ignore commanded states for sign in, wait, and connect while connected
 
     def doConnectFailed(self):
         if self.keepAlive:
-            # update keep alive status with "waiting to restart connection"
-            if self.waitRestart.isElapsed():
-                self.vpnStatus.setKeepAliveStatus("Restarting Connection")
-                self.state = self.connectState.NetworkWait
+            if self.reconnectCnt < 3:
+                self.vpnStatus.setKeepAliveStatus("Waiting to Reconnect")
+                if self.waitRestart.isElapsed():
+                    self.vpnStatus.setKeepAliveStatus("Restarting Connection")
+                    self.state = self.connectState.NetworkWait
+                    self.reconnectCnt = self.reconnectCnt + 1
+            else:
+                self.vpnStatus.setKeepAliveStatus("Retries Exhausted")
+                self.state = self.connectState.Wait
+                self.cmdState = self.connectState.Wait
         else:
             # keep alive isn't set so go back to wait state
             self.state = self.connectState.Wait
@@ -210,34 +228,43 @@ class JuniperClient:
     def connectThreadRun(self):
         self.stop = False
         self.state = self.connectState.Wait
+        pstate = self.connectState.Wait
         self.vpnStatus.setConnectionStatus("Disconnected")
         while self.stop is False:
-            self.vpnCon.updateDevInfo()
+            try:
+                self.vpnCon.updateDevInfo()
 
-            # if disconnect or signout is commanded in any state, do it
-            if self.cmdState == self.connectState.Disconnect:
-                self.state = self.connectState.Disconnect
-            elif self.cmdState == self.connectState.SignOut:
-                self.state = self.connectState.SignOut
+                # if disconnect or signout is commanded in any state, do it
+                if self.cmdState == self.connectState.Disconnect:
+                    self.state = self.connectState.Disconnect
+                elif self.cmdState == self.connectState.SignOut:
+                    self.state = self.connectState.SignOut
 
-            if self.state == self.connectState.Wait:
-                self.doWait()
-            elif self.state == self.connectState.SignIn:
-                self.doSignIn()
-            elif self.state == self.connectState.SignOut:
-                self.doSignOut()
-            elif self.state == self.connectState.NetworkWait:
-                self.doNetworkWait()
-            elif self.state == self.connectState.Connecting:
-                self.doConnect()
-            elif self.state == self.connectState.ConnectWait:
-                self.doConnectWait()
-            elif self.state == self.connectState.Connected:
-                self.doConnected()
-            elif self.state == self.connectState.ConnectFailed:
-                self.doConnectFailed()
-            elif self.state == self.connectState.Disconnect:
-                self.doDisconnect()
+                if self.state == self.connectState.Wait:
+                    self.doWait()
+                elif self.state == self.connectState.SignIn:
+                    self.doSignIn()
+                elif self.state == self.connectState.SignOut:
+                    self.doSignOut()
+                elif self.state == self.connectState.NetworkWait:
+                    self.doNetworkWait()
+                elif self.state == self.connectState.Connecting:
+                    self.doConnect()
+                elif self.state == self.connectState.ConnectWait:
+                    self.doConnectWait()
+                elif self.state == self.connectState.Connected:
+                    self.doConnected()
+                elif self.state == self.connectState.ConnectFailed:
+                    self.doConnectFailed()
+                elif self.state == self.connectState.Disconnect:
+                    self.doDisconnect()
+            except Exception as e:
+                logger.exception(e)
+
+            if pstate != self.state:
+                logger.debug("state %s, keep alive %s", self.state, self.keepAlive)
+            pstate = self.state
+
             time.sleep(0.5)
         self.vpnCon.disconnect()
 
