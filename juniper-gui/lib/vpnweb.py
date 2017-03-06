@@ -29,6 +29,8 @@ class CookieDt:
     def getStr(self):
         if self.cookiedt > datetime.fromtimestamp(0):
             return self.cookiedt.isoformat()
+        else:
+            return ""
 
 
 class VpnWeb:
@@ -248,6 +250,7 @@ class VpnWeb:
         return resp
 
     def signOut(self):
+        self.hostChecker.stopHostChecker()
         self.updateStatus('Signing out')
         resp = self.opener.open(self.logouturl)
         if not 'Your session has been terminated' in resp:
