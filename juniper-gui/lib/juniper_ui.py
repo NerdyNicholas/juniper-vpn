@@ -284,7 +284,7 @@ class MainWindow(QtGui.QMainWindow):
 
     def loadConfig(self):
         if not os.path.exists(os.path.dirname(self.configFile)):
-            os.mkdir(os.path.dirname(self.configFile), mode=0755)
+            os.mkdir(os.path.dirname(self.configFile), 0755)
 
         defaults = {
             'vpnHost': 'vpn.example.com',
