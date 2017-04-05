@@ -56,6 +56,10 @@ class VpnStatus:
 
         self.notify()
 
+    def setSignInStatusString(self, status):
+        self.signin["status"] = status
+        self.notify
+
     def setConnectionInfo(self, host, ip, sent, recv, duration):
         self.connection["host"] = host
         self.connection["ip"] = ip
