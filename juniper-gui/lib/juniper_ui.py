@@ -77,12 +77,19 @@ class MainWindow(QtGui.QMainWindow):
         self.tabs.addTab(self.tabConnect, "Connection")
         self.tabs.addTab(self.tabConfig, "Config")
         self.tabs.addTab(self.tabLog, "Log")
+
+        self.exitBtn = QtGui.QPushButton()
+        self.exitBtn.setIcon(QtGui.QIcon(self.style().standardPixmap(QtGui.QStyle.SP_DialogCancelButton)))
+        self.exitBtn.clicked.connect(self.exitConfirm)
+        self.tabs.setCornerWidget(self.exitBtn)
+
         self.setCentralWidget(self.tabs)
 
         self.loadTrayIcon()
 
         self.setGeometry(300, 300, 300, 250)
         self.setWindowTitle("Juniper VPN GUI")
+        self.setWindowIcon(QtGui.QIcon(os.path.join(self.res, "networkconnect.gif")))
         self.show()
 
         self.btnConnect.clicked.connect(self.connect)
@@ -265,6 +272,16 @@ class MainWindow(QtGui.QMainWindow):
         self.stop()
         QtGui.QApplication.quit()
 
+    def exitConfirm(self):
+        confirmBox = QtGui.QMessageBox(self)
+        confirmBox.setIcon(QtGui.QMessageBox.Question)
+        confirmBox.setWindowTitle("Confirm Exit")
+        confirmBox.setStandardButtons(QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
+        confirmBox.setText("Are you sure you want to exit?  This will disconnect your session and sign out.")
+        resp = confirmBox.exec_()
+        if resp == QtGui.QMessageBox.Yes:
+            self.exitAction()
+
     def trayIconActivated(self, reason):
         if reason == QtGui.QSystemTrayIcon.Context:
             self.tray.contextMenu().show()
@@ -331,7 +348,11 @@ class MainWindow(QtGui.QMainWindow):
         self.errorBox.exec_()
 
     def signIn(self):
-        self.client.signIn(self.qtsif['leUser'].text(), self.qtsif['lePin'].text(), self.qtsif['leToken'].text())
+        pin = self.qtsif['lePin'].text()
+        token = self.qtsif['leToken'].text()
+        self.qtsif['lePin'].setText('')
+        self.qtsif['leToken'].setText('')
+        self.client.signIn(self.qtsif['leUser'].text(), pin, token)
 
     def signOut(self):
         self.client.signOut()
