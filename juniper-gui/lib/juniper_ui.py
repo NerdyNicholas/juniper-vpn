@@ -81,6 +81,7 @@ class MainWindow(QtGui.QMainWindow):
         self.exitBtn = QtGui.QPushButton()
         self.exitBtn.setIcon(QtGui.QIcon(self.style().standardPixmap(QtGui.QStyle.SP_DialogCancelButton)))
         self.exitBtn.clicked.connect(self.exitConfirm)
+        self.exitBtn.setFlat(True)
         self.tabs.setCornerWidget(self.exitBtn)
 
         self.setCentralWidget(self.tabs)
