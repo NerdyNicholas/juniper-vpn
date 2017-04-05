@@ -40,7 +40,6 @@ class JuniperClient:
 
         self.stop = False
 
-        self.connectStatus = ""
         self.connectThread = None
         self.connectState = Enum('connectState', 'Wait SignIn SignOut NetworkWait Connected Connecting ConnectWait ConnectFailed Disconnect')
         self.cmdState = self.connectState.Wait
@@ -121,6 +120,8 @@ class JuniperClient:
                     # go straight to connecting since if sign in passed, network is up
                     self.state = self.connectState.Connecting
         except Exception as e:
+            self.vpnWeb.signOut()
+            self.vpnStatus.setSignInStatusString("Sign in Failed")
             self.vpnStatus.setError(e)
             logger.exception(e)
 
@@ -132,7 +133,7 @@ class JuniperClient:
             if self.vpnWeb.checkSignIn():
                 self.vpnStatus.setError("Sign out failed")
         except Exception as e:
-            self.vpnWeb.updateStatus("Sign Out Exception")
+            self.vpnStatus.setSignInStatusString("Sign Out Exception")
             self.vpnStatus.setError(e)
             logger.exception(e)
 
