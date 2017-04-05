@@ -66,8 +66,9 @@ class HostChecker:
         cmd = shlex.split(cmd)
         self.hcpid = subprocess.Popen(cmd, stdin=subprocess.PIPE)
 
-        # wait up to 10 seconds for narport.txt
-        for i in range(1, 10):
+        # wait up to 20 seconds for narport.txt
+        # on initial start, it can take a while for java to launch the host checker
+        for i in range(1, 20):
             if os.path.exists(self.narporttxt):
                 break
             time.sleep(1)
