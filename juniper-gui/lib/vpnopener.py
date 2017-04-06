@@ -16,6 +16,7 @@ class VpnOpener:
         self.request = None
         self.resp = ""
         self.cookieFile = cookieFile
+        self.timeout = 30
         if agent is None:
             agent = 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:48.0) Gecko/20100101 Firefox/48.0'
         # create cookie jar to use with opener
@@ -60,7 +61,7 @@ class VpnOpener:
         self.cjar.set_cookie(cookie)
 
     def open(self, url, params=None):
-        self.request = self.opener.open(url, params)
+        self.request = self.opener.open(url, params, timeout=self.timeout)
         self.resp = self.request.read()
         self.cjar.save()
         return self.resp
