@@ -260,7 +260,7 @@ class MainWindow(QtGui.QMainWindow):
         self.trayConnectAction.triggered.connect(self.connect)
         self.trayDisconnectAction.triggered.connect(self.disconnect)
         #self.traySignoutAction.triggered.connect(self.signout)
-        self.trayExitAction.triggered.connect(self.exitAction)
+        self.trayExitAction.triggered.connect(self.exitConfirm)
         self.trayShowAction.triggered.connect(lambda: (self.activateWindow(), self.show(), self.raise_()))
 
         self.tray.activated.connect(self.trayIconActivated)
