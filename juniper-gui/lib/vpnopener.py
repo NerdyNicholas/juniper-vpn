@@ -53,6 +53,13 @@ class VpnOpener:
                                     comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
         self.cjar.set_cookie(cookie)
 
+        # set cookie for the "pre sign in" notification
+        cookie = cookielib.Cookie(version=0, name='DSSigninNotif', value='1', port=None, port_specified=False,
+                                    domain=host, domain_specified=False, domain_initial_dot=False, path='/',
+                                    path_specified=True, secure=False, expires=None, discard=True, comment=None,
+                                    comment_url=None, rest={'HttpOnly': None}, rfc2109=False)
+        self.cjar.set_cookie(cookie)
+
     def setDspreauthCookie(self, host, value):
         cookie = cookielib.Cookie(version=0, name='DSPREAUTH', value=value, port=None, port_specified=False,
                                     domain=host, domain_specified=False, domain_initial_dot=False, path='/dana-na/',
