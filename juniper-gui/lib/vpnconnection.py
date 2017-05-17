@@ -116,7 +116,7 @@ class VpnConnection:
 
     def pingCheck(self, ipaddr):
         try:
-            cmd = "ping -c 1 -W 2 %s >/dev/null 2>&1" % ipaddr
+            cmd = "ping -c 1 -W 2 %s" % ipaddr
             cmd = shlex.split(cmd)
             subprocess.check_output(cmd)
             return True

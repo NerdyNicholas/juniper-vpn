@@ -64,9 +64,10 @@ class JuniperClient:
         if not self.connectThread is None:
             self.connectThread.join(2)
 
-    def setConfig(self, host, port, urlnum, realm):
+    def setConfig(self, host, port, urlnum, realm, pingHost):
         self.vpnWeb.setConfig(host, port, urlnum, realm)
         self.vpnCon.setHost(host)
+        self.pingHost = pingHost
 
     def setKeepAlive(self, keepAlive):
         if keepAlive is True:
@@ -185,29 +186,34 @@ class JuniperClient:
             self.vpnCon.disconnect()
             self.state = self.connectState.ConnectFailed
         elif self.keepAlive and self.waitKeepAlive.isElapsed():
+            logger.debug("performing keep alive checks")
             self.waitKeepAlive.reset()
             self.vpnStatus.setKeepAliveStatus("Checking Connection")
             # connection is up but may not be passing data, check it
             if not self.vpnCon.checkGateway():
+                logger.error("keep alive gateway check failed")
                 self.vpnStatus.setConnectionStatus("Network Lost")
                 self.vpnStatus.setKeepAliveStatus("Gateway Check Failed")
                 self.vpnCon.disconnect()
                 self.waitRestart.reset()
                 self.state = self.connectState.ConnectFailed
             elif self.vpnWeb.checkSignInAndError() != 0:
+                logger.error("keep alive sign in check failed")
                 self.vpnStatus.setConnectionStatus("Disconnected by Keep Alive")
                 self.vpnStatus.setKeepAliveStatus("Sign In Check Failed")
                 self.vpnCon.disconnect()
                 self.waitRestart.reset()
                 self.state = self.connectState.ConnectFailed
-            elif len(self.pingHost) >=8:
+            elif len(self.pingHost) >= 8:
                 # do ping check
                 failed = True
                 for i in range(0, 2, 1):
                     if self.vpnCon.pingCheck(self.pingHost):
                         failed = False
+                        logger.debug("keep alive ping check to host %s succeeded", self.pingHost)
                         break
                 if failed:
+                    logger.error("keep alive ping check to host %s failed", self.pingHost)
                     self.vpnStatus.setConnectionStatus("Disconnected by Keep Alive")
                     self.vpnStatus.setKeepAliveStatus("Ping Check Failed")
                     self.vpnCon.disconnect()

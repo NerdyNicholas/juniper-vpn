@@ -327,7 +327,7 @@ class MainWindow(QtGui.QMainWindow):
         self.config.set('junipergui', 'vpnUrlNum', self.configUi['vpnUrlNum']['edit'].text())
         self.config.set('junipergui', 'keepAlive', self.configUi['keepAlive']['edit'].text())
         self.config.set('junipergui', 'autoLogout', self.configUi['autoLogout']['edit'].text())
-        self.config.set('junipergui', 'pinghost', self.configUi['pinghost']['edit'].text())
+        self.config.set('junipergui', 'pingHost', self.configUi['pingHost']['edit'].text())
         with open(self.configFile, 'w') as configFd:
             self.config.write(configFd)
 
@@ -345,7 +345,8 @@ class MainWindow(QtGui.QMainWindow):
         vpnPort = int(self.config.get('junipergui', 'vpnPort'))
         vpnRealm = self.config.get('junipergui', 'vpnRealm')
         vpnUrlNum = self.config.get('junipergui', 'vpnUrlNum')
-        self.client.setConfig(vpnHost, vpnPort, vpnUrlNum, vpnRealm)
+        pingHost = self.config.get('junipergui', 'pingHost')
+        self.client.setConfig(vpnHost, vpnPort, vpnUrlNum, vpnRealm, pingHost)
 
     def showError(self, title, text):
         self.errorBox.setWindowTitle(title)
