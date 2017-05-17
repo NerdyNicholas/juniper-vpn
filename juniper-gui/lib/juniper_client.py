@@ -52,6 +52,8 @@ class JuniperClient:
         self.waitKeepAlive = Waiter(timedelta(seconds=30))
         self.waitRestart = Waiter(timedelta(seconds=15))
 
+        self.pingHost = ""
+
     def startConnectThread(self):
         if self.connectThread is None:
             self.connectThread = threading.Thread(target=self.connectThreadRun)
@@ -198,6 +200,19 @@ class JuniperClient:
                 self.vpnCon.disconnect()
                 self.waitRestart.reset()
                 self.state = self.connectState.ConnectFailed
+            elif len(self.pingHost) >=8:
+                # do ping check
+                failed = True
+                for i in range(0, 2, 1):
+                    if self.vpnCon.pingCheck(self.pingHost):
+                        failed = False
+                        break
+                if failed:
+                    self.vpnStatus.setConnectionStatus("Disconnected by Keep Alive")
+                    self.vpnStatus.setKeepAliveStatus("Ping Check Failed")
+                    self.vpnCon.disconnect()
+                    self.waitRestart.reset()
+                    self.state = self.connectState.ConnectFailed
             else:
                 self.vpnStatus.setKeepAliveStatus("Checks passed")
 

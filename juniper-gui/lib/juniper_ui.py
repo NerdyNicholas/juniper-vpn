@@ -225,7 +225,8 @@ class MainWindow(QtGui.QMainWindow):
             ["vpnRealm", "Login realm for vpn:", 40, 200],
             ["vpnUrlNum", "Url number used in the vpn url (e.g. url_15):", 10, 100],
             ["autoLogout", "Time until auto logout (hours):", 5, 50],
-            ["keepAlive", "Time in seconds to check VPN connection and reconnect:", 5, 50]
+            ["keepAlive", "Time in seconds to check VPN connection and reconnect:", 5, 50],
+            ["pingHost", "IP address of host to ping to check connection:", 16, 150]
         ]
         self.configUi = {}
         self.configUi['layout'] = QtGui.QGridLayout()
@@ -311,6 +312,7 @@ class MainWindow(QtGui.QMainWindow):
             'vpnUrlNum': 'url_0',
             'keepAlive': '60',
             'autoLogout': '24',
+            'pingHost': '',
         }
         config = ConfigParser.RawConfigParser(defaults)
         config.read(self.configFile)
@@ -325,6 +327,7 @@ class MainWindow(QtGui.QMainWindow):
         self.config.set('junipergui', 'vpnUrlNum', self.configUi['vpnUrlNum']['edit'].text())
         self.config.set('junipergui', 'keepAlive', self.configUi['keepAlive']['edit'].text())
         self.config.set('junipergui', 'autoLogout', self.configUi['autoLogout']['edit'].text())
+        self.config.set('junipergui', 'pinghost', self.configUi['pinghost']['edit'].text())
         with open(self.configFile, 'w') as configFd:
             self.config.write(configFd)
 
@@ -335,6 +338,7 @@ class MainWindow(QtGui.QMainWindow):
         self.configUi['vpnUrlNum']['edit'].setText(self.config.get('junipergui', 'vpnUrlNum'))
         self.configUi['keepAlive']['edit'].setText(self.config.get('junipergui', 'keepAlive'))
         self.configUi['autoLogout']['edit'].setText(self.config.get('junipergui', 'autoLogout'))
+        self.configUi['pingHost']['edit'].setText(self.config.get('junipergui', 'pingHost'))
 
     def setJuniperConfig(self):
         vpnHost = self.config.get('junipergui', 'vpnHost')
