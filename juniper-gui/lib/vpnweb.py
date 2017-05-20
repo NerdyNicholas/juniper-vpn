@@ -139,7 +139,7 @@ class VpnWeb:
         self.cookieDtFirst.update(self.opener.getCookie('DSFirstAccess'))
         self.cookieDtLast.update(self.opener.getCookie('DSLastAccess'))
         first = self.cookieDtFirst.getStr()
-        last = self.cookieDtFirst.getStr()
+        last = self.cookieDtLast.getStr()
         hostCheck = self.hostChecker.isRunning()
         self.vpnstatus.setSignStatus(status, hostCheck, first, last, "", "")
 
