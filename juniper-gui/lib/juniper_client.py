@@ -67,8 +67,12 @@ class JuniperClient:
     def setConfig(self, host, port, urlnum, realm, keepAlivePeriod, pingHost):
         self.vpnWeb.setConfig(host, port, urlnum, realm)
         self.vpnCon.setHost(host)
-        self.waitKeepAlive.td = timedelta(keepAlivePeriod)
         self.pingHost = pingHost
+        try:
+            self.waitKeepAlive.td = timedelta(int(keepAlivePeriod))
+        except ValueError:
+            logger.error("Invalid keep alive period %s", keepAlivePeriod)
+            self.waitKeepAlive.td = timedelta(30)
 
     def setKeepAlive(self, keepAlive):
         if keepAlive is True:
