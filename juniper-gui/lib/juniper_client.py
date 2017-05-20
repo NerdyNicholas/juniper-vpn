@@ -64,9 +64,10 @@ class JuniperClient:
         if not self.connectThread is None:
             self.connectThread.join(2)
 
-    def setConfig(self, host, port, urlnum, realm, pingHost):
+    def setConfig(self, host, port, urlnum, realm, keepAlivePeriod, pingHost):
         self.vpnWeb.setConfig(host, port, urlnum, realm)
         self.vpnCon.setHost(host)
+        self.waitKeepAlive.td = timedelta(keepAlivePeriod)
         self.pingHost = pingHost
 
     def setKeepAlive(self, keepAlive):
