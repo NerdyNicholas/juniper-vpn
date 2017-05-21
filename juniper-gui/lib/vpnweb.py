@@ -98,8 +98,8 @@ class VpnWeb:
         #    the system will automatically sign you out after 24 hours (hard coded for now)
         #    regardless of idle time
         # 3. have DSID cookie, less than 24 hours since sign in, if host checker
-        #    is running, we shouldn"t be marked as "idle" and so should still be signed in
-        #    if host checker isn"t running then we see if it"s been an hour since last access
+        #    is running, we shouldn't be marked as "idle" and so should still be signed in
+        #    if host checker isn't running then we see if it"s been an hour since last access
         #
         dsid = self.opener.getCookie("DSID")
         if dsid is None or len(dsid) < 32:

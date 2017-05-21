@@ -52,9 +52,9 @@ class HostChecker:
         paramStr = ""
         for param in HostChecker.defaultParams.keys():
             if not param in params.keys():
-                paramStr = paramStr + param + " "" + HostChecker.defaultParams[param] + "" "
+                paramStr = paramStr + param + " \"" + HostChecker.defaultParams[param] + "\" "
             else:
-                paramStr = paramStr + param + " "" + params[param] + "" "
+                paramStr = paramStr + param + " \"" + params[param] + "\" "
 
         # remove old narport.txt file
         if os.path.exists(self.narporttxt):
