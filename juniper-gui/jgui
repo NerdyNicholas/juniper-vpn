@@ -6,7 +6,8 @@ import os
 from PyQt4 import QtGui, QtCore
 from lib import juniper_ui
 
-logging.basicConfig(level=logging.DEBUG)
+FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+logging.basicConfig(filename='/tmp/jgui.log', level=logging.DEBUG, format=FORMAT)
 #QtGui.QApplication.setStyle("plastique")
 app = QtGui.QApplication(sys.argv)
 res = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'res')

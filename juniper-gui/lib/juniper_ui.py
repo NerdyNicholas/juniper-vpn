@@ -41,6 +41,8 @@ class MainWindow(QtGui.QMainWindow):
         self.bgSignInThread = None
         self.exitOnClose = False
 
+        self.logPos = 0
+
         self.client = JuniperClient()
         self.setJuniperConfig()
         self.client.vpnStatus.setObserver(self.onVpnStatusChanged)
@@ -52,7 +54,7 @@ class MainWindow(QtGui.QMainWindow):
 
         self.updateTimer = QtCore.QTimer()
         self.updateTimer.timeout.connect(self.onUpdateTimer)
-        #self.updateTimer.start(1000)
+        self.updateTimer.start(1000)
 
         self.client.startConnectThread()
 
@@ -66,12 +68,15 @@ class MainWindow(QtGui.QMainWindow):
         self.buildSignInTab()
         self.buildConnectionInfo()
         self.buildConfigTab()
+        self.buildLogTab()
 
         self.tabConnectLayout = QtGui.QVBoxLayout()
         self.tabConnectLayout.addWidget(self.gbConnectInfo)
         self.tabConnect.setLayout(self.tabConnectLayout)
 
         self.tabSignIn.setLayout(self.sitab)
+
+        self.tabLog.setLayout(self.tabLogUi['layout'])
 
         self.tabs.addTab(self.tabSignIn, "Sign In")
         self.tabs.addTab(self.tabConnect, "Connection")
@@ -247,6 +252,15 @@ class MainWindow(QtGui.QMainWindow):
         self.tabConfig = QtGui.QWidget(parent=self)
         self.tabConfig.setLayout(self.configUi['layout'])
 
+    def buildLogTab(self):
+        self.tabLogUi = {}
+        self.tabLogUi['layout'] = QtGui.QVBoxLayout()
+        self.tabLogUi['teLog'] = QtGui.QPlainTextEdit()
+        self.tabLogUi['teLog'].setWordWrapMode(QtGui.QTextOption.NoWrap)
+        self.tabLogUi['teLog'].setReadOnly(True)
+        self.tabLogUi['layout'].addWidget(self.tabLogUi['teLog'])
+
+
     def loadTrayIcon(self):
         #self.trayIcon = QtGui.QIcon(self.style().standardPixmap(QtGui.QStyle.SP_ComputerIcon))
         self.trayIcon = QtGui.QIcon(os.path.join(self.res, "networkconnect.gif"))
@@ -374,6 +388,18 @@ class MainWindow(QtGui.QMainWindow):
         self.updateTimer.stop()
         self.client.stopConnectThread()
 
+    def updateLogView(self):
+        try:
+            with open('/tmp/jgui.log', 'r') as log:
+                log.seek(self.logPos)
+                text = log.read()
+                self.logPos = log.tell()
+                if text:
+                    self.tabLogUi['teLog'].insertPlainText(text)
+        except Exception as e:
+            print "log update exception"
+            print e
+
     def onKeepAliveChanged(self):
         self.client.setKeepAlive(self.chkKeepAlive.isChecked())
 
@@ -382,8 +408,7 @@ class MainWindow(QtGui.QMainWindow):
         self.showError("Error", errstr)
 
     def onUpdateTimer(self):
-        self.signInStatusUpdated.emit(self.client.getSignInStatus())
-        self.connectInfoUpdated.emit(self.client.vpnStatus.connection)
+        self.updateLogView()
 
     def onVpnStatusChanged(self):
         self.signInStatusUpdated.emit(self.client.getSignInStatus())
