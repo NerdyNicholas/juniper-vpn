@@ -395,7 +395,8 @@ class MainWindow(QtGui.QMainWindow):
                 text = log.read()
                 self.logPos = log.tell()
                 if text:
-                    self.tabLogUi['teLog'].insertPlainText(text)
+                    self.tabLogUi['teLog'].appendPlainText(text)
+                    self.tabLogUi['teLog'].centerCursor()
         except Exception as e:
             print "log update exception"
             print e
