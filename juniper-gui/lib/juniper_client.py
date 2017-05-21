@@ -175,11 +175,13 @@ class JuniperClient:
 
     def doConnectWait(self):
         if self.vpnCon.isDevUp():
+            logger.info("connected")
             self.vpnStatus.setConnectionStatus("Connected")
             self.reconnectCnt = 0
             self.waitKeepAlive.reset()
             self.state = self.connectState.Connected
         elif self.waitConnected.isElapsed():
+            logger.warning("failed to connect")
             self.vpnStatus.setConnectionStatus("Failed to Connect")
             self.vpnCon.disconnect()
             self.state = self.connectState.ConnectFailed
@@ -187,6 +189,7 @@ class JuniperClient:
     def doConnected(self):
         self.updateConnectInfo()
         if not self.vpnCon.isDevUp():
+            logger.warning("connection lost")
             self.vpnStatus.setConnectionStatus("Connection Lost")
             self.vpnCon.disconnect()
             self.state = self.connectState.ConnectFailed
@@ -196,14 +199,14 @@ class JuniperClient:
             self.vpnStatus.setKeepAliveStatus("Checking Connection")
             # connection is up but may not be passing data, check it
             if not self.vpnCon.checkGateway():
-                logger.error("keep alive gateway check failed")
+                logger.warning("keep alive gateway check failed")
                 self.vpnStatus.setConnectionStatus("Network Lost")
                 self.vpnStatus.setKeepAliveStatus("Gateway Check Failed")
                 self.vpnCon.disconnect()
                 self.waitRestart.reset()
                 self.state = self.connectState.ConnectFailed
             elif self.vpnWeb.checkSignInAndError() != 0:
-                logger.error("keep alive sign in check failed")
+                logger.warning("keep alive sign in check failed")
                 self.vpnStatus.setConnectionStatus("Disconnected by Keep Alive")
                 self.vpnStatus.setKeepAliveStatus("Sign In Check Failed")
                 self.vpnCon.disconnect()
@@ -218,13 +221,14 @@ class JuniperClient:
                         logger.debug("keep alive ping check to host %s succeeded", self.pingHost)
                         break
                 if failed:
-                    logger.error("keep alive ping check to host %s failed", self.pingHost)
+                    logger.warning("keep alive ping check to host %s failed", self.pingHost)
                     self.vpnStatus.setConnectionStatus("Disconnected by Keep Alive")
                     self.vpnStatus.setKeepAliveStatus("Ping Check Failed")
                     self.vpnCon.disconnect()
                     self.waitRestart.reset()
                     self.state = self.connectState.ConnectFailed
             else:
+                logger.debug("keep alive checks passed")
                 self.vpnStatus.setKeepAliveStatus("Checks passed")
 
         # ignore commanded states for sign in, wait, and connect while connected
@@ -232,21 +236,26 @@ class JuniperClient:
     def doConnectFailed(self):
         if self.keepAlive:
             if self.reconnectCnt < 3:
+                logger.info("waiting to reconnect")
                 self.vpnStatus.setKeepAliveStatus("Waiting to Reconnect")
                 if self.waitRestart.isElapsed():
+                    logger.info("restarting connection")
                     self.vpnStatus.setKeepAliveStatus("Restarting Connection")
                     self.state = self.connectState.NetworkWait
                     self.reconnectCnt = self.reconnectCnt + 1
             else:
+                logger.warning("connection retries exhausted")
                 self.vpnStatus.setKeepAliveStatus("Retries Exhausted")
                 self.state = self.connectState.Wait
                 self.cmdState = self.connectState.Wait
         else:
             # keep alive isn't set so go back to wait state
+            logger.warning("keep alive disabled, not reconnecting")
             self.state = self.connectState.Wait
             self.cmdState = self.connectState.Wait
 
     def doDisconnect(self):
+        logger.info("disconnecting")
         self.vpnCon.disconnect()
         self.vpnStatus.setConnectionStatus("Disconnected")
         self.state = self.connectState.Wait
@@ -257,6 +266,7 @@ class JuniperClient:
         self.state = self.connectState.Wait
         pstate = self.connectState.Wait
         self.vpnStatus.setConnectionStatus("Disconnected")
+        logger.info("disconnected")
         while self.stop is False:
             try:
                 self.vpnCon.updateDevInfo()
