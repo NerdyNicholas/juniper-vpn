@@ -160,7 +160,7 @@ class VpnWeb:
                                         'realm'     : self.realm,
                                         'pin'       : pin,
                                         'token'     : token})
-        logger.debug('Logging in with parameters %s', loginParams)
+        logger.debug('Logging in with parameters %s', loginParams.replace(pin, "*").replace(token, "*"))
         self.updateStatus('Signing In with username %s' % username)
         resp = self.opener.open(self.loginurl, loginParams)
 
@@ -180,7 +180,7 @@ class VpnWeb:
             self.opener.printCookies()
             raise Exception('Failed to get DSID when signing in')
         self.updateStatus('Sign in successful')
-        logger.debug('Logged in and got DSID as %s', self.dsid)
+        logger.debug('Logged in and got DSID')
 
         # check for other login sessions after host check
         if 'id="DSIDConfirmForm"' in resp:

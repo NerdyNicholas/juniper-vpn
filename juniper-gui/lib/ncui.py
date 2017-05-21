@@ -38,7 +38,7 @@ class Ncui:
     def start(self, host, dsid):
         self.stop()
         cmd = '%s -h %s -c DSID=%s -f %s' % (self.ncui, host, dsid, self.cert)
-        logger.debug('Starting ncui with command: %s', cmd)
+        logger.debug('Starting ncui with command: %s', cmd.replace(dsid,"*"))
         cmd = shlex.split(cmd)
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, cwd=self.ncdir)
         # send <enter> to Password prompt that pops up after
