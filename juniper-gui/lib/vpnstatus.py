@@ -50,9 +50,9 @@ class VpnStatus:
         self.signin["idle"] = idle
 
         if hostCheck:
-            self.signin['hostCheck'] = 'Running'
+            self.signin["hostCheck"] = "Running"
         else:
-            self.signin['hostCheck'] = 'Not Running'
+            self.signin["hostCheck"] = "Not Running"
 
         self.notify()
 

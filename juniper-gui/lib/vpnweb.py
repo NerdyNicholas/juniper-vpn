@@ -41,15 +41,15 @@ class VpnWeb:
 
     def __init__(self, jndir, vpnstatus):
         self.jndir = jndir
-        self.host = ''
-        self.realm = ''
+        self.host = ""
+        self.realm = ""
         self.port = 443
-        self.baseurl = ''
-        self.loginurl = ''
-        self.welcomeurl = ''
-        self.logouturl = ''
-        self.homeurl = ''
-        self.dsid = ''
+        self.baseurl = ""
+        self.loginurl = ""
+        self.welcomeurl = ""
+        self.logouturl = ""
+        self.homeurl = ""
+        self.dsid = ""
         self.username = ""
         self.pin = ""
         self.token = ""
@@ -61,18 +61,18 @@ class VpnWeb:
 
         # create vpn opener to handle https and cookie operations
         # cookie file will be stored in juniper directory
-        self.opener = VpnOpener(os.path.join(self.jndir, 'jccl.txt'))
+        self.opener = VpnOpener(os.path.join(self.jndir, "jccl.txt"))
 
-        self.hostChecker = HostChecker(os.path.join(self.jndir, 'tncc.jar'), os.path.join(self.jndir, 'narport.txt'))
+        self.hostChecker = HostChecker(os.path.join(self.jndir, "tncc.jar"), os.path.join(self.jndir, "narport.txt"))
 
     def setConfig(self, host, port, urlnum, realm):
         self.host = host
         self.port = port
-        self.baseurl = 'https://%s:%i/dana-na/auth' % (host, port)
-        self.loginurl = '%s/%s/login.cgi' % (self.baseurl, urlnum)
-        self.welcomeurl = '%s/%s/welcome.cgi' % (self.baseurl, urlnum)
-        self.logouturl = '%s/logout.cgi' % self.baseurl
-        self.homeurl = 'https://%s:%i/dana/home/index.cgi' % (host, port)
+        self.baseurl = "https://%s:%i/dana-na/auth" % (host, port)
+        self.loginurl = "%s/%s/login.cgi" % (self.baseurl, urlnum)
+        self.welcomeurl = "%s/%s/welcome.cgi" % (self.baseurl, urlnum)
+        self.logouturl = "%s/logout.cgi" % self.baseurl
+        self.homeurl = "https://%s:%i/dana/home/index.cgi" % (host, port)
         self.realm = realm
 
     def setCredentials(self, username, pin, token):
@@ -83,9 +83,9 @@ class VpnWeb:
     def parseParams(self, text):
         params = {}
         for line in text.splitlines():
-            if not 'PARAM' in line:
+            if not "PARAM" in line:
                 continue
-            parts = line.split('"')
+            parts = line.split("\"")
             params[parts[1]] = parts[3]
         return params
 
@@ -98,10 +98,10 @@ class VpnWeb:
         #    the system will automatically sign you out after 24 hours (hard coded for now)
         #    regardless of idle time
         # 3. have DSID cookie, less than 24 hours since sign in, if host checker
-        #    is running, we shouldn't be marked as "idle" and so should still be signed in
-        #    if host checker isn't running then we see if it's been an hour since last access
+        #    is running, we shouldn"t be marked as "idle" and so should still be signed in
+        #    if host checker isn"t running then we see if it"s been an hour since last access
         #
-        dsid = self.opener.getCookie('DSID')
+        dsid = self.opener.getCookie("DSID")
         if dsid is None or len(dsid) < 32:
             return False
         else:
@@ -117,7 +117,7 @@ class VpnWeb:
         will be updated and the isSignedIn check will pass. If we are not signed in, the vpn
         will redirect us back to welcome.cgi and clear all the cookies including DSID.
         """
-        logger.debug('Accessing home url %s', self.homeurl)
+        logger.debug("Accessing home url %s", self.homeurl)
         resp = self.opener.open(self.homeurl)
         self.updateStatus()
         signedIn = self.isSignedIn()
@@ -136,8 +136,8 @@ class VpnWeb:
             return -2
 
     def updateStatus(self, status=""):
-        self.cookieDtFirst.update(self.opener.getCookie('DSFirstAccess'))
-        self.cookieDtLast.update(self.opener.getCookie('DSLastAccess'))
+        self.cookieDtFirst.update(self.opener.getCookie("DSFirstAccess"))
+        self.cookieDtLast.update(self.opener.getCookie("DSLastAccess"))
         first = self.cookieDtFirst.getStr()
         last = self.cookieDtLast.getStr()
         hostCheck = self.hostChecker.isRunning()
@@ -155,39 +155,39 @@ class VpnWeb:
 
         self.opener.setupLoginCookies(self.host)
         # create the login parameters
-        loginParams = urllib.urlencode({'username'  : username,
-                                        'password'  : pin + token,
-                                        'realm'     : self.realm,
-                                        'pin'       : pin,
-                                        'token'     : token})
-        logger.debug('Logging in with parameters %s', loginParams.replace(pin, "*").replace(token, "*"))
-        self.updateStatus('Signing In with username %s' % username)
+        loginParams = urllib.urlencode({"username"  : username,
+                                        "password"  : pin + token,
+                                        "realm"     : self.realm,
+                                        "pin"       : pin,
+                                        "token"     : token})
+        logger.debug("Logging in with parameters %s", loginParams.replace(pin, "*").replace(token, "*"))
+        self.updateStatus("Signing In with username %s" % username)
         resp = self.opener.open(self.loginurl, loginParams)
 
         if "Invalid username or password" in resp:
-            self.updateStatus('Sign in failed, invalid username or password')
+            self.updateStatus("Sign in failed, invalid username or password")
             raise Exception("Invalid username or password, re-enter your information and try again")
 
-        if 'Host Checker' in resp:
-            self.updateStatus('Running host checker')
+        if "Host Checker" in resp:
+            self.updateStatus("Running host checker")
             resp = self.checkHost(self.opener.request.geturl(), resp)
 
-        self.dsid = self.opener.getCookie('DSID')
+        self.dsid = self.opener.getCookie("DSID")
         if self.dsid is None:
-            self.updateStatus('Sign in failed, DSID not found after host check')
-            logger.error('Login failed, DSID not found in sign in response')
+            self.updateStatus("Sign in failed, DSID not found after host check")
+            logger.error("Login failed, DSID not found in sign in response")
             logger.debug("%s", resp)
             self.opener.printCookies()
-            raise Exception('Failed to get DSID when signing in')
-        self.updateStatus('Sign in successful')
-        logger.debug('Logged in and got DSID')
+            raise Exception("Failed to get DSID when signing in")
+        self.updateStatus("Sign in successful")
+        logger.debug("Logged in and got DSID")
 
         # check for other login sessions after host check
-        if 'id="DSIDConfirmForm"' in resp:
-            logger.info('Found other active session, leaving it open and continuing')
+        if "id=\"DSIDConfirmForm\"" in resp:
+            logger.info("Found other active session, leaving it open and continuing")
             #formData = m/name="FormDataStr" value="([^"]+)"/
             formData = ""
-            contParams = urllib.urlencode({'btnContinue':'Continue the session', 'FormDataStr': formData})
+            contParams = urllib.urlencode({"btnContinue":"Continue the session", "FormDataStr": formData})
             resp = self.opener.open(self.loginurl, contParams)
             logger.debug("%s", resp)
             self.opener.printCookies()
@@ -205,23 +205,23 @@ class VpnWeb:
         # make sure the host checker jar is already downloaded
         if not self.hostChecker.exists():
             # TODO: download host checker, path is given in response
-            self.updateStatus('Host check failed, missing tncc.jar')
-            logger.error('Cannot run host checker, tncc.jar does not exist at %s', self.hostChecker.jar)
+            self.updateStatus("Host check failed, missing tncc.jar")
+            logger.error("Cannot run host checker, tncc.jar does not exist at %s", self.hostChecker.jar)
             raise Exception("VPN requires host checker but tncc.jar does not exist. Please login from a browser to download components.")
 
         # make sure we got the preauth key
-        preauth = self.opener.getCookie('DSPREAUTH')
+        preauth = self.opener.getCookie("DSPREAUTH")
         if preauth is None:
-            self.updateStatus('Host check failed, missing  DSPREAUTH')
-            logger.error('Preauth key not found in login response.')
+            self.updateStatus("Host check failed, missing  DSPREAUTH")
+            logger.error("Preauth key not found in login response.")
             logger.debug("%s %s", url, resp)
             self.opener.printCookies()
-            raise Exception('Host check failed, failed to get DSPREAUTH cookie')
+            raise Exception("Host check failed, failed to get DSPREAUTH cookie")
 
         # get the state id and realm id from the new url returned from the login
         parsedParams = urlparse.parse_qs(url)
-        stateid = parsedParams['id'][0].split('_')[1]
-        signinRealmId = parsedParams['signinRealmId'][0]
+        stateid = parsedParams["id"][0].split("_")[1]
+        signinRealmId = parsedParams["signinRealmId"][0]
 
         # get params from resp to start host checker, params are in the form
         # <PARAM NAME="name" VALUE="5.0">
@@ -232,18 +232,18 @@ class VpnWeb:
         # set the response key as the new DSPREAUTH cookie value
         self.opener.setDspreauthCookie(self.host, hcresp[2])
         # set params needed to send the host check response key
-        params = urllib.urlencode({'loginmode'  : 'mode_postAuth', 'postauth'  : 'state_%s' % stateid})
-        self.updateStatus('Sending host check response key')
-        logger.debug('Sending preauth %s', params)
+        params = urllib.urlencode({"loginmode"  : "mode_postAuth", "postauth"  : "state_%s" % stateid})
+        self.updateStatus("Sending host check response key")
+        logger.debug("Sending preauth %s", params)
         resp = self.opener.open(self.loginurl, params)
 
-        preauth = self.opener.getCookie('DSPREAUTH')
+        preauth = self.opener.getCookie("DSPREAUTH")
         if preauth is None:
-            self.updateStatus('Host check failed, no response to post auth key')
-            logger.error('Host check failed, no preauth cookie in response to host check post auth')
+            self.updateStatus("Host check failed, no response to post auth key")
+            logger.error("Host check failed, no preauth cookie in response to host check post auth")
             logger.debug("%s %s", url, resp)
             self.opener.printCookies()
-            raise Exception('Host check failed, failed to get DSPREAUTH cookie')
+            raise Exception("Host check failed, failed to get DSPREAUTH cookie")
 
         # send preauth cookie to host checker, not sure why this is needed
         self.hostChecker.sendCookie(preauth)
@@ -251,13 +251,13 @@ class VpnWeb:
 
     def signOut(self):
         self.hostChecker.stopHostChecker()
-        self.updateStatus('Signing out')
+        self.updateStatus("Signing out")
         resp = self.opener.open(self.logouturl)
-        if not 'Your session has been terminated' in resp:
-            self.updateStatus('Sign out failed')
+        if not "Your session has been terminated" in resp:
+            self.updateStatus("Sign out failed")
             # signout failed, maybe user no longer has network connection
             return False
-        self.updateStatus('Sign out succeeded')
+        self.updateStatus("Sign out succeeded")
         return True
 
 

@@ -41,7 +41,7 @@ class JuniperClient:
         self.stop = False
 
         self.connectThread = None
-        self.connectState = Enum('connectState', 'Wait SignIn SignOut NetworkWait Connected Connecting ConnectWait ConnectFailed Disconnect')
+        self.connectState = Enum("connectState", "Wait SignIn SignOut NetworkWait Connected Connecting ConnectWait ConnectFailed Disconnect")
         self.cmdState = self.connectState.Wait
         self.state = self.connectState.Wait
         self.keepAlive = False
@@ -249,7 +249,7 @@ class JuniperClient:
                 self.state = self.connectState.Wait
                 self.cmdState = self.connectState.Wait
         else:
-            # keep alive isn't set so go back to wait state
+            # keep alive isn"t set so go back to wait state
             logger.warning("keep alive disabled, not reconnecting")
             self.state = self.connectState.Wait
             self.cmdState = self.connectState.Wait

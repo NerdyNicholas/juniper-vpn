@@ -17,11 +17,11 @@ class Ncui:
 
     def __init__(self, path, cert):
         self.jndir = path
-        self.ncdir = os.path.join(self.jndir, 'network_connect/')
+        self.ncdir = os.path.join(self.jndir, "network_connect/")
         self.cert = cert
 
         # the ncui wrapper has to be run from the network_connect directory
-        self.ncui = os.path.join(self.ncdir, 'ncui_wrapper')
+        self.ncui = os.path.join(self.ncdir, "ncui_wrapper")
 
         self.proc = None
 
@@ -37,8 +37,8 @@ class Ncui:
 
     def start(self, host, dsid):
         self.stop()
-        cmd = '%s -h %s -c DSID=%s -f %s' % (self.ncui, host, dsid, self.cert)
-        logger.debug('Starting ncui with command: %s', cmd.replace(dsid,"*"))
+        cmd = "%s -h %s -c DSID=%s -f %s" % (self.ncui, host, dsid, self.cert)
+        logger.debug("Starting ncui with command: %s", cmd.replace(dsid,"*"))
         cmd = shlex.split(cmd)
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, cwd=self.ncdir)
         # send <enter> to Password prompt that pops up after
@@ -53,7 +53,7 @@ class Ncui:
                 logger.error("Failed to stop ncui")
         self.proc = None
 
-        # second kill any processes we didn't start
+        # second kill any processes we didn"t start
         try:
             pids = map(int, subprocess.check_output(["pidof", "ncui_wrapper"]).split())
             for pid in pids:
@@ -66,6 +66,6 @@ class Ncui:
             if len(pids) > 0:
                 time.sleep(1)
         except:
-            # if no pids are found, will throw an exception or if pid doesn't exist for kill
+            # if no pids are found, will throw an exception or if pid doesn"t exist for kill
             pass
 

@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class VpnConnection:
 
-    def __init__(self, jndir, devname='tun'):
+    def __init__(self, jndir, devname="tun"):
         self.jndir = jndir
         self.devname = devname
         self.host = ""
@@ -78,7 +78,7 @@ class VpnConnection:
                     break
         try:
             name = info[0].split(":")[0]
-            ipaddr = netifaces.ifaddresses(name)[netifaces.AF_INET][0]['addr']
+            ipaddr = netifaces.ifaddresses(name)[netifaces.AF_INET][0]["addr"]
             # ip, bytes recv, bytes sent
             devInfo = (ipaddr, int(info[1]), int(info[9]))
             return devInfo
@@ -106,7 +106,7 @@ class VpnConnection:
 
     def getGateway(self):
         try:
-            gateway = netifaces.gateways()['default'][netifaces.AF_INET]
+            gateway = netifaces.gateways()["default"][netifaces.AF_INET]
             return gateway
         except:
             return ""
@@ -125,13 +125,13 @@ class VpnConnection:
 
     def fixRoutes(self):
         try:
-            cmd = "/bin/bash -c \"ip route | grep 'metric 10' | grep -v default\""
+            cmd = "/bin/bash -c \"ip route | grep \"metric 10\" | grep -v default\""
             cmd = shlex.split(cmd)
             output = subprocess.check_output(cmd)
         except subprocess.CalledProcessError as cpe:
             output = cpe.output
 
-        for line in output.split('\n'):
+        for line in output.split("\n"):
             newRoute = line.replace("metric 10", "metric 0")
             cmd = "ip route replace %s" % newRoute
             cmd = shlex.split(cmd)

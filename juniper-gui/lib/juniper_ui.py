@@ -76,7 +76,7 @@ class MainWindow(QtGui.QMainWindow):
 
         self.tabSignIn.setLayout(self.sitab)
 
-        self.tabLog.setLayout(self.tabLogUi['layout'])
+        self.tabLog.setLayout(self.tabLogUi["layout"])
 
         self.tabs.addTab(self.tabSignIn, "Sign In")
         self.tabs.addTab(self.tabConnect, "Connection")
@@ -106,8 +106,8 @@ class MainWindow(QtGui.QMainWindow):
         self.buildSignInStatus()
 
         self.sitab = QtGui.QVBoxLayout()
-        self.sitab.addWidget(self.qtsis['gb'])
-        self.sitab.addWidget(self.qtsif['gb'])
+        self.sitab.addWidget(self.qtsis["gb"])
+        self.sitab.addWidget(self.qtsif["gb"])
 
         self.errorBox = QtGui.QMessageBox(self)
         self.errorBox.setIcon(QtGui.QMessageBox.Critical)
@@ -115,63 +115,63 @@ class MainWindow(QtGui.QMainWindow):
     def buildSignInForm(self):
         self.qtsif = {}
         # create widgets for logging in
-        self.qtsif['lblUser'] = QtGui.QLabel("Username:")
-        self.qtsif['leUser'] = QtGui.QLineEdit()
-        self.qtsif['lblPin'] = QtGui.QLabel("Pin:")
-        self.qtsif['lePin'] = QtGui.QLineEdit()
-        self.qtsif['lePin'].setMaxLength(8)
-        self.qtsif['lePin'].setMaximumWidth(75)
-        self.qtsif['lePin'].setEchoMode(QtGui.QLineEdit.Password)
-        self.qtsif['lblToken'] = QtGui.QLabel("Token:")
-        self.qtsif['leToken'] = QtGui.QLineEdit()
-        self.qtsif['leToken'].setMaxLength(12)
-        self.qtsif['leToken'].setMaximumWidth(75)
-        self.qtsif['btnSignIn'] = QtGui.QPushButton("Sign In")
-        self.qtsif['btnSignOut'] = QtGui.QPushButton("Sign Out")
+        self.qtsif["lblUser"] = QtGui.QLabel("Username:")
+        self.qtsif["leUser"] = QtGui.QLineEdit()
+        self.qtsif["lblPin"] = QtGui.QLabel("Pin:")
+        self.qtsif["lePin"] = QtGui.QLineEdit()
+        self.qtsif["lePin"].setMaxLength(8)
+        self.qtsif["lePin"].setMaximumWidth(75)
+        self.qtsif["lePin"].setEchoMode(QtGui.QLineEdit.Password)
+        self.qtsif["lblToken"] = QtGui.QLabel("Token:")
+        self.qtsif["leToken"] = QtGui.QLineEdit()
+        self.qtsif["leToken"].setMaxLength(12)
+        self.qtsif["leToken"].setMaximumWidth(75)
+        self.qtsif["btnSignIn"] = QtGui.QPushButton("Sign In")
+        self.qtsif["btnSignOut"] = QtGui.QPushButton("Sign Out")
 
-        self.qtsif['btnSignIn'].clicked.connect(self.signIn)
-        self.qtsif['btnSignOut'].clicked.connect(self.signOut)
+        self.qtsif["btnSignIn"].clicked.connect(self.signIn)
+        self.qtsif["btnSignOut"].clicked.connect(self.signOut)
 
         # buttons layout
-        self.qtsif['btnsLayout'] = QtGui.QHBoxLayout()
-        self.qtsif['btnsLayout'].addWidget(self.qtsif['btnSignIn'])
-        self.qtsif['btnsLayout'].addWidget(self.qtsif['btnSignOut'])
+        self.qtsif["btnsLayout"] = QtGui.QHBoxLayout()
+        self.qtsif["btnsLayout"].addWidget(self.qtsif["btnSignIn"])
+        self.qtsif["btnsLayout"].addWidget(self.qtsif["btnSignOut"])
 
         # create layout for sign in widgets
-        self.qtsif['layout'] = QtGui.QGridLayout()
-        self.qtsif['layout'].addWidget(self.qtsif['lblUser'], 0, 0)
-        self.qtsif['layout'].addWidget(self.qtsif['leUser'], 0, 1)
-        self.qtsif['layout'].addWidget(self.qtsif['lblPin'], 1, 0)
-        self.qtsif['layout'].addWidget(self.qtsif['lePin'], 1, 1)
-        self.qtsif['layout'].addWidget(self.qtsif['lblToken'], 2, 0)
-        self.qtsif['layout'].addWidget(self.qtsif['leToken'], 2, 1)
-        self.qtsif['layout'].addLayout(self.qtsif['btnsLayout'], 3, 0, 1, 2)
+        self.qtsif["layout"] = QtGui.QGridLayout()
+        self.qtsif["layout"].addWidget(self.qtsif["lblUser"], 0, 0)
+        self.qtsif["layout"].addWidget(self.qtsif["leUser"], 0, 1)
+        self.qtsif["layout"].addWidget(self.qtsif["lblPin"], 1, 0)
+        self.qtsif["layout"].addWidget(self.qtsif["lePin"], 1, 1)
+        self.qtsif["layout"].addWidget(self.qtsif["lblToken"], 2, 0)
+        self.qtsif["layout"].addWidget(self.qtsif["leToken"], 2, 1)
+        self.qtsif["layout"].addLayout(self.qtsif["btnsLayout"], 3, 0, 1, 2)
 
-        self.qtsif['gb'] = QtGui.QGroupBox('Sign In Credentials')
-        self.qtsif['gb'].setLayout(self.qtsif['layout'])
+        self.qtsif["gb"] = QtGui.QGroupBox("Sign In Credentials")
+        self.qtsif["gb"].setLayout(self.qtsif["layout"])
 
     def buildSignInStatus(self):
         self.qtsis = {}
-        self.qtsis['lblStatus'] = QtGui.QLabel('Status:')
-        self.qtsis['lblStatusValue'] = QtGui.QLabel()
-        self.qtsis['lblFirstAccess'] = QtGui.QLabel('Sign In Date Time:')
-        self.qtsis['lblFirstAccessValue'] = QtGui.QLabel()
-        self.qtsis['lblLastAccess'] = QtGui.QLabel('Last Access:')
-        self.qtsis['lblLastAccessValue'] = QtGui.QLabel()
-        self.qtsis['lblHostCheck'] = QtGui.QLabel('Host Checker:')
-        self.qtsis['lblHostCheckValue'] = QtGui.QLabel()
-        self.qtsis['layout'] = QtGui.QGridLayout()
-        self.qtsis['layout'].addWidget(self.qtsis['lblStatus'], 0, 0)
-        self.qtsis['layout'].addWidget(self.qtsis['lblStatusValue'], 0, 1)
-        self.qtsis['layout'].addWidget(self.qtsis['lblFirstAccess'], 1, 0)
-        self.qtsis['layout'].addWidget(self.qtsis['lblFirstAccessValue'], 1, 1)
-        self.qtsis['layout'].addWidget(self.qtsis['lblLastAccess'], 2, 0)
-        self.qtsis['layout'].addWidget(self.qtsis['lblLastAccessValue'], 2, 1)
-        self.qtsis['layout'].addWidget(self.qtsis['lblHostCheck'], 3, 0)
-        self.qtsis['layout'].addWidget(self.qtsis['lblHostCheckValue'], 3, 1)
+        self.qtsis["lblStatus"] = QtGui.QLabel("Status:")
+        self.qtsis["lblStatusValue"] = QtGui.QLabel()
+        self.qtsis["lblFirstAccess"] = QtGui.QLabel("Sign In Date Time:")
+        self.qtsis["lblFirstAccessValue"] = QtGui.QLabel()
+        self.qtsis["lblLastAccess"] = QtGui.QLabel("Last Access:")
+        self.qtsis["lblLastAccessValue"] = QtGui.QLabel()
+        self.qtsis["lblHostCheck"] = QtGui.QLabel("Host Checker:")
+        self.qtsis["lblHostCheckValue"] = QtGui.QLabel()
+        self.qtsis["layout"] = QtGui.QGridLayout()
+        self.qtsis["layout"].addWidget(self.qtsis["lblStatus"], 0, 0)
+        self.qtsis["layout"].addWidget(self.qtsis["lblStatusValue"], 0, 1)
+        self.qtsis["layout"].addWidget(self.qtsis["lblFirstAccess"], 1, 0)
+        self.qtsis["layout"].addWidget(self.qtsis["lblFirstAccessValue"], 1, 1)
+        self.qtsis["layout"].addWidget(self.qtsis["lblLastAccess"], 2, 0)
+        self.qtsis["layout"].addWidget(self.qtsis["lblLastAccessValue"], 2, 1)
+        self.qtsis["layout"].addWidget(self.qtsis["lblHostCheck"], 3, 0)
+        self.qtsis["layout"].addWidget(self.qtsis["lblHostCheckValue"], 3, 1)
 
-        self.qtsis['gb'] = QtGui.QGroupBox('Sign In Status')
-        self.qtsis['gb'].setLayout(self.qtsis['layout'])
+        self.qtsis["gb"] = QtGui.QGroupBox("Sign In Status")
+        self.qtsis["gb"].setLayout(self.qtsis["layout"])
 
     def buildConnectionInfo(self):
         # create widgets
@@ -234,31 +234,31 @@ class MainWindow(QtGui.QMainWindow):
             ["pingHost", "IP address of host to ping to check connection:", 16, 150]
         ]
         self.configUi = {}
-        self.configUi['layout'] = QtGui.QGridLayout()
+        self.configUi["layout"] = QtGui.QGridLayout()
         for row in range(0, len(fields)):
             self.configUi[fields[row][0]] = {
-                'label': QtGui.QLabel(fields[row][1]),
-                'edit': QtGui.QLineEdit()}
-            self.configUi[fields[row][0]]['edit'].setMaxLength(fields[row][2])
+                "label": QtGui.QLabel(fields[row][1]),
+                "edit": QtGui.QLineEdit()}
+            self.configUi[fields[row][0]]["edit"].setMaxLength(fields[row][2])
             if fields[row][3] > 0:
-                self.configUi[fields[row][0]]['edit'].setMaximumWidth(fields[row][3])
-            self.configUi['layout'].addWidget(self.configUi[fields[row][0]]["label"], row * 2, 0)
-            self.configUi['layout'].addWidget(self.configUi[fields[row][0]]["edit"], (row * 2) + 1, 0)
+                self.configUi[fields[row][0]]["edit"].setMaximumWidth(fields[row][3])
+            self.configUi["layout"].addWidget(self.configUi[fields[row][0]]["label"], row * 2, 0)
+            self.configUi["layout"].addWidget(self.configUi[fields[row][0]]["edit"], (row * 2) + 1, 0)
 
-        self.configUi['btnSave'] = QtGui.QPushButton("Save")
-        self.configUi['btnSave'].clicked.connect(self.saveConfig)
+        self.configUi["btnSave"] = QtGui.QPushButton("Save")
+        self.configUi["btnSave"].clicked.connect(self.saveConfig)
 
-        self.configUi['layout'].addWidget(self.configUi['btnSave'], (row * 2) + 2, 0)
+        self.configUi["layout"].addWidget(self.configUi["btnSave"], (row * 2) + 2, 0)
         self.tabConfig = QtGui.QWidget(parent=self)
-        self.tabConfig.setLayout(self.configUi['layout'])
+        self.tabConfig.setLayout(self.configUi["layout"])
 
     def buildLogTab(self):
         self.tabLogUi = {}
-        self.tabLogUi['layout'] = QtGui.QVBoxLayout()
-        self.tabLogUi['teLog'] = QtGui.QPlainTextEdit()
-        self.tabLogUi['teLog'].setWordWrapMode(QtGui.QTextOption.NoWrap)
-        self.tabLogUi['teLog'].setReadOnly(True)
-        self.tabLogUi['layout'].addWidget(self.tabLogUi['teLog'])
+        self.tabLogUi["layout"] = QtGui.QVBoxLayout()
+        self.tabLogUi["teLog"] = QtGui.QPlainTextEdit()
+        self.tabLogUi["teLog"].setWordWrapMode(QtGui.QTextOption.NoWrap)
+        self.tabLogUi["teLog"].setReadOnly(True)
+        self.tabLogUi["layout"].addWidget(self.tabLogUi["teLog"])
 
 
     def loadTrayIcon(self):
@@ -320,47 +320,47 @@ class MainWindow(QtGui.QMainWindow):
             os.mkdir(os.path.dirname(self.configFile), 0755)
 
         defaults = {
-            'vpnHost': 'vpn.example.com',
-            'vpnPort': '443',
-            'vpnRealm': 'realm',
-            'vpnUrlNum': 'url_0',
-            'keepAlive': '60',
-            'autoLogout': '24',
-            'pingHost': '',
+            "vpnHost": "vpn.example.com",
+            "vpnPort": "443",
+            "vpnRealm": "realm",
+            "vpnUrlNum": "url_0",
+            "keepAlive": "60",
+            "autoLogout": "24",
+            "pingHost": "",
         }
         config = ConfigParser.RawConfigParser(defaults)
         config.read(self.configFile)
-        if not config.has_section('junipergui'):
+        if not config.has_section("junipergui"):
             config.add_section("junipergui")
         self.config = config
 
     def saveConfig(self):
-        self.config.set('junipergui', 'vpnHost', self.configUi['vpnHost']['edit'].text())
-        self.config.set('junipergui', 'vpnPort', self.configUi['vpnPort']['edit'].text())
-        self.config.set('junipergui', 'vpnRealm', self.configUi['vpnRealm']['edit'].text())
-        self.config.set('junipergui', 'vpnUrlNum', self.configUi['vpnUrlNum']['edit'].text())
-        self.config.set('junipergui', 'keepAlive', self.configUi['keepAlive']['edit'].text())
-        self.config.set('junipergui', 'autoLogout', self.configUi['autoLogout']['edit'].text())
-        self.config.set('junipergui', 'pingHost', self.configUi['pingHost']['edit'].text())
-        with open(self.configFile, 'w') as configFd:
+        self.config.set("junipergui", "vpnHost", self.configUi["vpnHost"]["edit"].text())
+        self.config.set("junipergui", "vpnPort", self.configUi["vpnPort"]["edit"].text())
+        self.config.set("junipergui", "vpnRealm", self.configUi["vpnRealm"]["edit"].text())
+        self.config.set("junipergui", "vpnUrlNum", self.configUi["vpnUrlNum"]["edit"].text())
+        self.config.set("junipergui", "keepAlive", self.configUi["keepAlive"]["edit"].text())
+        self.config.set("junipergui", "autoLogout", self.configUi["autoLogout"]["edit"].text())
+        self.config.set("junipergui", "pingHost", self.configUi["pingHost"]["edit"].text())
+        with open(self.configFile, "w") as configFd:
             self.config.write(configFd)
 
     def updateConfigTab(self):
-        self.configUi['vpnHost']['edit'].setText(self.config.get('junipergui', 'vpnHost'))
-        self.configUi['vpnPort']['edit'].setText(self.config.get('junipergui', 'vpnPort'))
-        self.configUi['vpnRealm']['edit'].setText(self.config.get('junipergui', 'vpnRealm'))
-        self.configUi['vpnUrlNum']['edit'].setText(self.config.get('junipergui', 'vpnUrlNum'))
-        self.configUi['keepAlive']['edit'].setText(self.config.get('junipergui', 'keepAlive'))
-        self.configUi['autoLogout']['edit'].setText(self.config.get('junipergui', 'autoLogout'))
-        self.configUi['pingHost']['edit'].setText(self.config.get('junipergui', 'pingHost'))
+        self.configUi["vpnHost"]["edit"].setText(self.config.get("junipergui", "vpnHost"))
+        self.configUi["vpnPort"]["edit"].setText(self.config.get("junipergui", "vpnPort"))
+        self.configUi["vpnRealm"]["edit"].setText(self.config.get("junipergui", "vpnRealm"))
+        self.configUi["vpnUrlNum"]["edit"].setText(self.config.get("junipergui", "vpnUrlNum"))
+        self.configUi["keepAlive"]["edit"].setText(self.config.get("junipergui", "keepAlive"))
+        self.configUi["autoLogout"]["edit"].setText(self.config.get("junipergui", "autoLogout"))
+        self.configUi["pingHost"]["edit"].setText(self.config.get("junipergui", "pingHost"))
 
     def setJuniperConfig(self):
-        vpnHost = self.config.get('junipergui', 'vpnHost')
-        vpnPort = int(self.config.get('junipergui', 'vpnPort'))
-        vpnRealm = self.config.get('junipergui', 'vpnRealm')
-        vpnUrlNum = self.config.get('junipergui', 'vpnUrlNum')
-        keepAlive = self.config.get('junipergui', 'keepAlive')
-        pingHost = self.config.get('junipergui', 'pingHost')
+        vpnHost = self.config.get("junipergui", "vpnHost")
+        vpnPort = int(self.config.get("junipergui", "vpnPort"))
+        vpnRealm = self.config.get("junipergui", "vpnRealm")
+        vpnUrlNum = self.config.get("junipergui", "vpnUrlNum")
+        keepAlive = self.config.get("junipergui", "keepAlive")
+        pingHost = self.config.get("junipergui", "pingHost")
         self.client.setConfig(vpnHost, vpnPort, vpnUrlNum, vpnRealm, keepAlive, pingHost)
 
     def showError(self, title, text):
@@ -369,11 +369,11 @@ class MainWindow(QtGui.QMainWindow):
         self.errorBox.exec_()
 
     def signIn(self):
-        pin = self.qtsif['lePin'].text()
-        token = self.qtsif['leToken'].text()
-        self.qtsif['lePin'].setText('')
-        self.qtsif['leToken'].setText('')
-        self.client.signIn(self.qtsif['leUser'].text(), pin, token)
+        pin = self.qtsif["lePin"].text()
+        token = self.qtsif["leToken"].text()
+        self.qtsif["lePin"].setText("")
+        self.qtsif["leToken"].setText("")
+        self.client.signIn(self.qtsif["leUser"].text(), pin, token)
 
     def signOut(self):
         self.client.signOut()
@@ -390,13 +390,13 @@ class MainWindow(QtGui.QMainWindow):
 
     def updateLogView(self):
         try:
-            with open('/tmp/jgui.log', 'r') as log:
+            with open("/tmp/jgui.log", "r") as log:
                 log.seek(self.logPos)
                 text = log.read()
                 self.logPos = log.tell()
                 if text:
-                    self.tabLogUi['teLog'].appendPlainText(text)
-                    self.tabLogUi['teLog'].centerCursor()
+                    self.tabLogUi["teLog"].appendPlainText(text)
+                    self.tabLogUi["teLog"].centerCursor()
         except Exception as e:
             print "log update exception"
             print e
@@ -419,21 +419,21 @@ class MainWindow(QtGui.QMainWindow):
             self.errorEncountered.emit(err)
 
     def onSignInStatusUpdated(self, sis):
-        if self.qtsis['lblStatusValue'].text() != sis['status']:
-            self.tray.showMessage("Juniper VPN", sis['status'])
-        self.qtsis['lblStatusValue'].setText(sis['status'])
-        self.qtsis['lblFirstAccessValue'].setText(sis['first'])
-        self.qtsis['lblLastAccessValue'].setText(sis['last'])
-        self.qtsis['lblHostCheckValue'].setText(sis['hostCheck'])
+        if self.qtsis["lblStatusValue"].text() != sis["status"]:
+            self.tray.showMessage("Juniper VPN", sis["status"])
+        self.qtsis["lblStatusValue"].setText(sis["status"])
+        self.qtsis["lblFirstAccessValue"].setText(sis["first"])
+        self.qtsis["lblLastAccessValue"].setText(sis["last"])
+        self.qtsis["lblHostCheckValue"].setText(sis["hostCheck"])
 
     def onConnectionInfoUpdate(self, connectInfo):
-        if connectInfo['status'] != self.lblConStatusValue.text():
-            self.tray.showMessage("Juniper VPN", connectInfo['status'])
-        self.lblConHostValue.setText(connectInfo['host'])
-        self.lblConStatusValue.setText(connectInfo['status'])
-        self.lblConIpValue.setText(connectInfo['ip'])
-        self.lblBytesRecvValue.setText(str(connectInfo['bytesRecv']))
-        self.lblBytesSentValue.setText(str(connectInfo['bytesSent']))
-        self.lblDurationValue.setText(str(connectInfo['duration']).split('.')[0])
+        if connectInfo["status"] != self.lblConStatusValue.text():
+            self.tray.showMessage("Juniper VPN", connectInfo["status"])
+        self.lblConHostValue.setText(connectInfo["host"])
+        self.lblConStatusValue.setText(connectInfo["status"])
+        self.lblConIpValue.setText(connectInfo["ip"])
+        self.lblBytesRecvValue.setText(str(connectInfo["bytesRecv"]))
+        self.lblBytesSentValue.setText(str(connectInfo["bytesSent"]))
+        self.lblDurationValue.setText(str(connectInfo["duration"]).split(".")[0])
         self.lblKeepAliveValue.setText(connectInfo["keepAlive"])
 
