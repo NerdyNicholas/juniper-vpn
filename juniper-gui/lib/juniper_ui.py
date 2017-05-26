@@ -352,6 +352,7 @@ class MainWindow(QtGui.QMainWindow):
         self.config.set("junipergui", "pingHost", self.configUi["pingHost"]["edit"].text())
         with open(self.configFile, "w") as configFd:
             self.config.write(configFd)
+        self.setJuniperConfig()
 
     def updateConfigTab(self):
         self.configUi["vpnHost"]["edit"].setText(self.config.get("junipergui", "vpnHost"))
