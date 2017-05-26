@@ -25,7 +25,13 @@ class VpnOpener:
             self.cjar.load()
 
         # create ssl opener with our cookie jar to be used for all the web based interactions
-        self.opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ssl._create_unverified_context()), urllib2.HTTPCookieProcessor(self.cjar))
+        # python versions >= 2.7.9 added default certificate validation which we disable
+        if hasattr(ssl, "_create_unverified_context"):
+            context = ssl._create_unverified_context()
+            self.opener = urllib2.build_opener(urllib2.HTTPSHandler(context=context), urllib2.HTTPCookieProcessor(self.cjar))
+        else:
+            # python version 2.6 doesn't even support context so we call without it
+            self.opener = urllib2.build_opener(urllib2.HTTPSHandler(), urllib2.HTTPCookieProcessor(self.cjar))
         self.opener.addheaders = [("User-agent", agent)]
 
         self.logResp = False
