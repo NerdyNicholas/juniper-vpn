@@ -160,7 +160,8 @@ class VpnWeb:
                                         "realm"     : self.realm,
                                         "pin"       : pin,
                                         "token"     : token})
-        logger.debug("Logging in with parameters %s", loginParams.replace(pin, "*").replace(token, "*"))
+        logger.debug("Signing in with parameters %s", loginParams.replace(pin, "*").replace(token, "*"))
+        self.opener.printCookies()
         self.updateStatus("Signing In with username %s" % username)
         resp = self.opener.open(self.loginurl, loginParams)
 
@@ -169,7 +170,6 @@ class VpnWeb:
             raise Exception("Invalid username or password, re-enter your information and try again")
 
         if "Host Checker" in resp:
-            self.updateStatus("Running host checker")
             resp = self.checkHost(self.opener.request.geturl(), resp)
 
         self.dsid = self.opener.getCookie("DSID")
@@ -202,13 +202,20 @@ class VpnWeb:
         # 5. The responded key is passed back to the vpn site along with some other parameters
         # 6. The vpn site responds back with a DSID needed to connect to the VPN
 
+        # get params from resp to download and start host checker, params are in the form
+        # <PARAM NAME="name" VALUE="5.0">
+        params = self.parseParams(resp)
+
         # make sure the host checker jar is already downloaded
         if not self.hostChecker.exists():
-            # TODO: download host checker, path is given in response
-            self.updateStatus("Host check failed, missing tncc.jar")
-            logger.error("Cannot run host checker, tncc.jar does not exist at %s", self.hostChecker.jar)
-            raise Exception("VPN requires host checker but tncc.jar does not exist. Please login from a browser to download components.")
+            self.updateStatus("Downloading host checker")
+            self.downloadHostChecker(params["DownloadPath"])
+        if not self.hostChecker.exists():
+            logger.error("Failed to download host checker")
+            self.updateStatus("Failed to download host checker")
+            raise Exception("Failed to download host checker")
 
+        self.updateStatus("Running host checker")
         # make sure we got the preauth key
         preauth = self.opener.getCookie("DSPREAUTH")
         if preauth is None:
@@ -223,9 +230,6 @@ class VpnWeb:
         stateid = parsedParams["id"][0].split("_")[1]
         signinRealmId = parsedParams["signinRealmId"][0]
 
-        # get params from resp to start host checker, params are in the form
-        # <PARAM NAME="name" VALUE="5.0">
-        params = self.parseParams(resp)
         self.hostChecker.startHostChecker(params)
         # do the host check and get the response which contains the response key
         hcresp = self.hostChecker.doCheck(preauth, self.host)
@@ -248,6 +252,14 @@ class VpnWeb:
         # send preauth cookie to host checker, not sure why this is needed
         self.hostChecker.sendCookie(preauth)
         return resp
+
+
+    def downloadHostChecker(self, downloadUrl):
+        fullUrl = "https://%s:%s%s" % (self.host, self.port, downloadUrl)
+        logger.debug("downloading host checker from url %s", fullUrl)
+        resp = self.opener.open(fullUrl)
+        with open(self.hostChecker.jar, "w") as hcf:
+            hcf.write(resp)
 
     def signOut(self):
         self.hostChecker.stopHostChecker()
