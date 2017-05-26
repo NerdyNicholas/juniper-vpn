@@ -28,6 +28,8 @@ class VpnOpener:
         self.opener = urllib2.build_opener(urllib2.HTTPSHandler(context=ssl._create_unverified_context()), urllib2.HTTPCookieProcessor(self.cjar))
         self.opener.addheaders = [("User-agent", agent)]
 
+        self.logResp = False
+
     def getCookie(self, name):
         for cookie in self.cjar:
             if cookie.name == name:
@@ -71,5 +73,7 @@ class VpnOpener:
         self.request = self.opener.open(url, params, timeout=self.timeout)
         self.resp = self.request.read()
         self.cjar.save()
+        if self.logResp:
+            logger.debug(self.resp)
         return self.resp
 
