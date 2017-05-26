@@ -276,11 +276,19 @@ class MainWindow(QtGui.QMainWindow):
         self.trayDisconnectAction.triggered.connect(self.disconnect)
         #self.traySignoutAction.triggered.connect(self.signout)
         self.trayExitAction.triggered.connect(self.exitConfirm)
-        self.trayShowAction.triggered.connect(lambda: (self.activateWindow(), self.show(), self.raise_()))
+        self.trayShowAction.triggered.connect(self.showAndRaise)
 
         self.tray.activated.connect(self.trayIconActivated)
         self.tray.setContextMenu(self.trayMenu)
         self.tray.show()
+
+    def showAndRaise(self):
+        """Hides the dialog, shows it, and the activate its so the
+        dailog will move to the current workspace and show above all other windows"""
+        self.hide()
+        self.show()
+        self.activateWindow()
+        self.raise_()
 
     def exitAction(self):
         self.client.disconnect()
@@ -289,6 +297,7 @@ class MainWindow(QtGui.QMainWindow):
         QtGui.QApplication.quit()
 
     def exitConfirm(self):
+        self.showAndRaise()
         confirmBox = QtGui.QMessageBox(self)
         confirmBox.setIcon(QtGui.QMessageBox.Question)
         confirmBox.setWindowTitle("Confirm Exit")
@@ -302,8 +311,7 @@ class MainWindow(QtGui.QMainWindow):
         if reason == QtGui.QSystemTrayIcon.Context:
             self.tray.contextMenu().show()
         elif reason == QtGui.QSystemTrayIcon.Trigger:
-            self.show()
-            self.raise_()
+            self.showAndRaise()
 
     def closeEvent(self, event):
         if self.exitOnClose:
