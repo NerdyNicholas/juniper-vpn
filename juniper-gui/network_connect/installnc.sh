@@ -2,8 +2,8 @@
 
 # exit this script if anything fails
 set -e
-set -x
-exec > /tmp/installnc.out 2>&1
+#set -x
+#exec > /tmp/installnc.out 2>&1
 
 if [ -z "$1" ]
 then
