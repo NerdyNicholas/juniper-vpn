@@ -6,8 +6,9 @@ import ssl
 import logging
 from datetime import datetime, timedelta
 
-from hostchecker import HostChecker
-from vpnopener import VpnOpener
+from lib.hostchecker import HostChecker
+from lib.vpnopener import VpnOpener
+from lib import sudo
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +40,8 @@ class VpnWeb:
     signing in/out and running host checker.
     """
 
-    def __init__(self, jndir, vpnstatus):
-        self.jndir = jndir
+    def __init__(self, ncPath, vpnstatus):
+        self.ncPath = ncPath
         self.host = ""
         self.realm = ""
         self.port = 443
@@ -61,9 +62,10 @@ class VpnWeb:
 
         # create vpn opener to handle https and cookie operations
         # cookie file will be stored in juniper directory
-        self.opener = VpnOpener(os.path.join(self.jndir, "jccl.txt"))
+        self.opener = VpnOpener(os.path.join(self.ncPath, "jccl.txt"))
 
-        self.hostChecker = HostChecker(os.path.join(self.jndir, "tncc.jar"), os.path.join(self.jndir, "narport.txt"))
+        self.hostChecker = HostChecker(os.path.join(self.ncPath, "tncc.jar"), os.path.join(self.ncPath, "narport.txt"))
+        self.ncjar = os.path.join(self.ncPath, "ncLinuxApp.jar")
 
     def setConfig(self, host, port, urlnum, realm):
         self.host = host
@@ -172,16 +174,6 @@ class VpnWeb:
         if "Host Checker" in resp:
             resp = self.checkHost(self.opener.request.geturl(), resp)
 
-        self.dsid = self.opener.getCookie("DSID")
-        if self.dsid is None:
-            self.updateStatus("Sign in failed, DSID not found after host check")
-            logger.error("Login failed, DSID not found in sign in response")
-            logger.debug("%s", resp)
-            self.opener.printCookies()
-            raise Exception("Failed to get DSID when signing in")
-        self.updateStatus("Sign in successful")
-        logger.debug("Logged in and got DSID")
-
         # check for other login sessions after host check
         if "id=\"DSIDConfirmForm\"" in resp:
             logger.info("Found other active session, leaving it open and continuing")
@@ -191,6 +183,21 @@ class VpnWeb:
             resp = self.opener.open(self.loginurl, contParams)
             logger.debug("%s", resp)
             self.opener.printCookies()
+
+        self.dsid = self.opener.getCookie("DSID")
+        if self.dsid is None:
+            msg = "Sign in failed, DSID not found after host check"
+            self.updateStatus(msg)
+            logger.error(msg)
+            logger.debug("%s", resp)
+            self.opener.printCookies()
+            raise Exception(msg)
+        self.updateStatus("Sign in successful")
+        logger.debug("Logged in and got DSID")
+
+        # once logged in successfully, download and install
+        # network connect components as needed
+        self.installNc()
 
     def checkHost(self, url, resp):
         # How the host checker works
@@ -253,7 +260,6 @@ class VpnWeb:
         self.hostChecker.sendCookie(preauth)
         return resp
 
-
     def downloadHostChecker(self, downloadUrl):
         fullUrl = "https://%s:%s%s" % (self.host, self.port, downloadUrl)
         logger.debug("downloading host checker from url %s", fullUrl)
@@ -262,14 +268,38 @@ class VpnWeb:
             hcf.write(resp)
 
     def signOut(self):
-        self.hostChecker.stopHostChecker()
         self.updateStatus("Signing out")
         resp = self.opener.open(self.logouturl)
         if not "Your session has been terminated" in resp:
             self.updateStatus("Sign out failed")
             # signout failed, maybe user no longer has network connection
             return False
+        self.hostChecker.stopHostChecker()
+        self.opener.open(self.welcomeurl)
         self.updateStatus("Sign out succeeded")
         return True
 
+    def installNc(self):
+        if not os.path.exists(self.ncjar):
+            self.updateStatus("Downloading NC")
+            self.downloadClient()
+        if not os.path.exists(self.ncjar):
+            self.updateStatus("Failed to download NC")
+            return
+
+        try:
+            self.updateStatus("Installing NC")
+            install = sudo.Sudo("/opt/juniper-gui/network_connect/installnc.sh " + self.ncjar, "", "Input password for installing network connect", True)
+            install.execute()
+            self.updateStatus("NC Installed")
+        except:
+            self.updateStatus("Failed to install NC")
+            raise Exception("Failed to install Network Connect client")
+
+    def downloadClient(self):
+        fullUrl = "https://%s:%s%s" % (self.host, self.port, "/dana-cached/nc/ncLinuxApp.jar")
+        logger.debug("downloading client from url %s", fullUrl)
+        resp = self.opener.open(fullUrl)
+        with open(self.ncjar, "w") as ncf:
+            ncf.write(resp)
 

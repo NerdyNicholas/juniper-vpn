@@ -34,16 +34,23 @@ class MainWindow(QtGui.QMainWindow):
         self.buildUi()
 
         # load the config, update the config tab
-        self.configFile = os.path.expanduser("~/.config/junipergui/junipergui.ini")
+        self.configPath = os.path.expanduser("~/.config/junipergui/")
+        self.configFile = os.path.join(self.configPath, "junipergui.ini")
         self.loadConfig()
         self.updateConfigTab()
+
+        # create path for downloading the client, host checker, ssl cert, etc
+        # the host checker is hard coded for $USER/juniper_networks apparently
+        self.ncPath = os.path.expanduser("~/.juniper_networks/")
+        if not os.path.exists(self.ncPath):
+            os.mkdir(self.ncPath, 0755)
 
         self.bgSignInThread = None
         self.exitOnClose = False
 
         self.logPos = 0
 
-        self.client = JuniperClient()
+        self.client = JuniperClient(self.ncPath)
         self.setJuniperConfig()
         self.client.vpnStatus.setObserver(self.onVpnStatusChanged)
 
@@ -249,7 +256,7 @@ class MainWindow(QtGui.QMainWindow):
         self.configUi["btnSave"].clicked.connect(self.saveConfig)
 
         self.configUi["layout"].addWidget(self.configUi["btnSave"], (row * 2) + 2, 0)
-        self.tabConfig = QtGui.QWidget(parent=self)
+        self.tabConfig = QtGui.QWidget()
         self.tabConfig.setLayout(self.configUi["layout"])
 
     def buildLogTab(self):
@@ -380,8 +387,8 @@ class MainWindow(QtGui.QMainWindow):
     def signIn(self):
         pin = self.qtsif["lePin"].text()
         token = self.qtsif["leToken"].text()
-        self.qtsif["lePin"].setText("")
-        self.qtsif["leToken"].setText("")
+        #self.qtsif["lePin"].setText("")
+        #self.qtsif["leToken"].setText("")
         self.client.signIn(self.qtsif["leUser"].text(), pin, token)
 
     def signOut(self):

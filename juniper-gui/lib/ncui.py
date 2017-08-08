@@ -16,13 +16,10 @@ class Ncui:
     """
 
     def __init__(self, path, cert):
-        self.jndir = path
-        self.ncdir = os.path.join(self.jndir, "network_connect/")
+        self.ncdir = path
         self.cert = cert
-
-        # the ncui wrapper has to be run from the network_connect directory
+        # the ncui wrapper has to be run from the same directory with the libncui.so
         self.ncui = os.path.join(self.ncdir, "ncui_wrapper")
-
         self.proc = None
 
     def isRunning(self):

@@ -32,11 +32,11 @@ class JuniperClient:
     Class to sign in/out, run host checker, and connect to a Juniper VPN.
     """
 
-    def __init__(self):
-        self.jndir = os.path.expanduser("~/.juniper_networks/")
-        self.vpnCon = VpnConnection(self.jndir)
+    def __init__(self, ncPath):
+        self.ncPath = ncPath
+        self.vpnCon = VpnConnection(self.ncPath)
         self.vpnStatus = VpnStatus()
-        self.vpnWeb = VpnWeb(self.jndir, self.vpnStatus)
+        self.vpnWeb = VpnWeb(self.ncPath, self.vpnStatus)
 
         self.stop = False
 
@@ -48,7 +48,7 @@ class JuniperClient:
         self.reconnectCnt = 0
 
         self.waitNetwork = Waiter(timedelta(seconds=10))
-        self.waitConnected = Waiter(timedelta(seconds=5))
+        self.waitConnected = Waiter(timedelta(seconds=30))
         self.waitKeepAlive = Waiter(timedelta(seconds=30))
         self.waitRestart = Waiter(timedelta(seconds=15))
 
