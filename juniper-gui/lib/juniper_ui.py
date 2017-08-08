@@ -273,11 +273,13 @@ class MainWindow(QtGui.QMainWindow):
         self.trayIcon = QtGui.QIcon(os.path.join(self.res, "networkconnect.gif"))
         self.tray = QtGui.QSystemTrayIcon(self.trayIcon)
         self.trayMenu = QtGui.QMenu()
-        self.trayExitAction = self.trayMenu.addAction("Exit")
         self.trayConnectAction = self.trayMenu.addAction("Connect")
         self.trayDisconnectAction = self.trayMenu.addAction("Disconnect")
         #self.traySignoutAction = self.trayMenu.addAction("Sign out")
+        self.trayMenu.addSeparator()
         self.trayShowAction = self.trayMenu.addAction("Show UI")
+        self.trayMenu.addSeparator()
+        self.trayExitAction = self.trayMenu.addAction("Exit")
 
         self.trayConnectAction.triggered.connect(self.connect)
         self.trayDisconnectAction.triggered.connect(self.disconnect)
@@ -387,8 +389,8 @@ class MainWindow(QtGui.QMainWindow):
     def signIn(self):
         pin = self.qtsif["lePin"].text()
         token = self.qtsif["leToken"].text()
-        #self.qtsif["lePin"].setText("")
-        #self.qtsif["leToken"].setText("")
+        self.qtsif["lePin"].setText("")
+        self.qtsif["leToken"].setText("")
         self.client.signIn(self.qtsif["leUser"].text(), pin, token)
 
     def signOut(self):
