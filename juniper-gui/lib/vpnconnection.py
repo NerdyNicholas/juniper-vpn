@@ -7,16 +7,18 @@ import subprocess
 import shlex
 import ssl
 import os
+import OpenSSL
 import netifaces
 
 from lib.ncui import Ncui
+from lib.openconnect import OpenConnect
 
 logger = logging.getLogger(__name__)
 
 class VpnConnection:
 
-    def __init__(self, jndir, devname="tun"):
-        self.jndir = jndir
+    def __init__(self, path, devname="tun"):
+        self.path = path
         self.devname = devname
         self.host = ""
         self.ip = ""
@@ -25,18 +27,23 @@ class VpnConnection:
         self.duration = timedelta()
         self.startDateTime = datetime.fromtimestamp(0)
         self.devUp = False
-        self.cert = os.path.join(self.jndir, "network_connect/ssl.crt")
-        self.ncui = Ncui(self.jndir, self.cert)
+        self.dercert = os.path.join(self.path, "ssl.dem")
+        self.pemcert = os.path.join(self.path, "ssl.pem")
+        self.ncui = Ncui(self.path, self.dercert)
+        self.openconnect = OpenConnect(self.pemcert)
+        self.vpnconnector = self.openconnect
+        self.vpnconnector = self.ncui
 
     def setHost(self, host):
         self.host = host
 
     def certExists(self):
-        return os.path.exists(self.cert)
+        return os.path.exists(self.vpnconnector.cert)
 
     def downloadAndSaveCert(self):
         (dercert, pemcert) = self.getSslCert(self.host)
-        self.saveSslCert(self.cert, dercert)
+        self.saveSslCert(self.dercert, dercert)
+        self.saveSslCert(self.pemcert, pemcert)
 
     def getSslCert(self, host, port=443):
         pemcert = ssl.get_server_certificate((host, port), ssl_version=ssl.PROTOCOL_SSLv23)
@@ -47,15 +54,19 @@ class VpnConnection:
         with open(certfile, mode="w") as certfile:
             certfile.write(cert)
 
+    def parseCert(self, cert):
+        x509 = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
+        x509.get_subject().get_components()
+
     def connect(self, dsid):
-        self.ncui.start(self.host, dsid)
+        self.vpnconnector.start(self.host, dsid)
         self.updateDevInfo()
         self.startDateTime = datetime.now()
         #if self.devUp:
             #self.fixRoutes()
 
     def disconnect(self):
-        self.ncui.stop()
+        self.vpnconnector.stop()
         self.updateDevInfo()
 
     def getConnectionInfo(self):
@@ -106,8 +117,14 @@ class VpnConnection:
 
     def getGateway(self):
         try:
-            gateway = netifaces.gateways()["default"][netifaces.AF_INET]
-            return gateway
+            if hasattr(netifaces, "gateways"):
+                gateway = netifaces.gateways()["default"][netifaces.AF_INET]
+                return gateway
+            else:
+                cmd = "/bin/bash -c \"ip route | grep -v %s | grep default\"" % self.devname
+                cmd = shlex.split(cmd)
+                output = subprocess.check_output(cmd)
+                return output
         except:
             return ""
 
