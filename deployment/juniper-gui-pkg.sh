@@ -39,8 +39,8 @@ mkdir -p ${TMPDIR}/usr/local/bin
 ln -s /${INSTALLDIR}/jgui ${TMPDIR}/usr/local/bin
 
 pushd ${PKGDIR}/network_connect
-gcc -m32 ../lib/ncui_wrapper.c -ldl -o ncui_wrapper
-rm ../lib/ncui_wrapper.c
+gcc -m32 ncui_wrapper.c -ldl -o ncui_wrapper
+rm ncui_wrapper.c
 #unzip ncLinuxApp.jar ncsvc libncui.so
 #chmod +x ncsvc ncui_wrapper
 popd
