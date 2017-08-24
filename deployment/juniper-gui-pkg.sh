@@ -62,7 +62,8 @@ fpm \
     --rpm-user root \
     --rpm-group root \
     -C $TMPDIR \
-    -d python-qt4 \
+    -d PyQt4 \
+	-d pyOpenSSL \
     -d python-enum34 \
     -d python-netifaces \
     ./ #${INSTALLDIR}
