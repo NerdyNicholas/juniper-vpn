@@ -33,6 +33,7 @@ class Sudo:
             SudoCmd("kdesudo", "", self.kdesu, SudoCmd.gui),
             SudoCmd("gksu", "", self.gksu, SudoCmd.gui),
             SudoCmd("kdesu", "", self.kdesu, SudoCmd.gui),
+            SudoCmd("pkexec", "", self.pkexec, SudoCmd.gui),
             SudoCmd("xterm", "", self.xterm, SudoCmd.guiTerm),
             SudoCmd("gnome-terminal", "", self.gnometerm, SudoCmd.guiTerm),
             SudoCmd("xfce-terminal", "", self.xfceterm, SudoCmd.guiTerm),
@@ -52,9 +53,12 @@ class Sudo:
         self.findSudo()
 
     def execute(self):
-        if self.sudoCmd is None:
+        if self.sudoCmd is None and self.sudoTermCmd is None:
             raise Exception("No sudo command found")
-        self.sudoCmd.func()
+        if self.sudoCmd:
+            self.sudoCmd.func()
+        else:
+            self.sudoTermCmd.func()
 
     def findSudo(self):
         # loop through possible paths and set path for every sudo command found
@@ -77,6 +81,10 @@ class Sudo:
 
     def kdesu(self):
         pass
+
+    def pkexec(self):
+        cmd = shlex.split("{0} {2}".format(self.sudoCmd.getFullCmd(), self.cmds))
+        subprocess.check_output(cmd)
 
     def xterm(self):
         pass
